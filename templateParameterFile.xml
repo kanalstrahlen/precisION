@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<parameters>
+	<version>1.0</version>
+	<PeakParameters>
+		<PeakBackgroundRatio>$PEAKBACKGROUNDRATIO$</PeakBackgroundRatio>
+		<SignalToNoiseThreshold>$SIGNALTONOISETHRESHOLD$</SignalToNoiseThreshold>
+		<PeakFitType>QUADRATIC</PeakFitType>
+		<WritePeaksToTextFile>False</WritePeaksToTextFile>
+		<IsDataThresholded>$THRESHOLD$</IsDataThresholded>
+	</PeakParameters>
+	<HornTransformParameters>
+		<TagFormula />
+		<AveragineFormula>C4.9384 H7.7583 N1.3577 O1.4773 S0.0417</AveragineFormula>
+		<DeleteIntensityThreshold>1</DeleteIntensityThreshold>
+		<MaxFit>$MAXFIT$</MaxFit>
+		<MinIntensityForScore>10</MinIntensityForScore>
+		<MaxCharge>$MAXCHARGE$</MaxCharge>
+		<MaxMW>$MAXMW$</MaxMW>
+		<NumPeaksForShoulder>1</NumPeaksForShoulder>
+		<O16O18Media>False</O16O18Media>
+		<PeptideMinBackgroundRatio>$PEPTIDEMINBACKGROUNDRATIO$</PeptideMinBackgroundRatio>
+		<UseAbsolutePeptideIntensity>False</UseAbsolutePeptideIntensity>
+		<AbsolutePeptideIntensity>0</AbsolutePeptideIntensity>
+		<ThrashOrNot>True</ThrashOrNot>
+		<CheckAllPatternsAgainstChargeState1>False</CheckAllPatternsAgainstChargeState1>
+		<CompleteFit>False</CompleteFit>
+		<CCMass>1.00727649</CCMass>
+		<IsotopeFitType>AREA</IsotopeFitType>
+		<UseMercuryCaching>True</UseMercuryCaching>
+		<SumSpectra>False</SumSpectra>
+		<SumSpectraAcrossScanRange>True</SumSpectraAcrossScanRange>
+		<NumberOfScansToSumOver>1</NumberOfScansToSumOver>
+		<SumSpectraAcrossIms>False</SumSpectraAcrossIms>
+		<NumberOfImsScansToSumOver>1</NumberOfImsScansToSumOver>
+		<IsActualMonoMZUsed>False</IsActualMonoMZUsed>
+		<LeftFitStringencyFactor>1</LeftFitStringencyFactor>
+		<RightFitStringencyFactor>1</RightFitStringencyFactor>
+		<ReplaceRAPIDScoreWithHornFitScore>False</ReplaceRAPIDScoreWithHornFitScore>
+		<NumPeaksUsedInAbundance>1</NumPeaksUsedInAbundance>
+		<DeconvolutionType>ThrashV1</DeconvolutionType>
+	</HornTransformParameters>
+	<Miscellaneous>
+		<UseScanRange>False</UseScanRange>
+		<MinScan>-2147483648</MinScan>
+		<MaxScan>2147483647</MaxScan>
+		<UseMZRange>False</UseMZRange>
+		<MinMZ>100</MinMZ>
+		<MaxMZ>3000</MaxMZ>
+		<ApplySavitzkyGolay>False</ApplySavitzkyGolay>
+		<SGNumLeft>2</SGNumLeft>
+		<SGNumRight>2</SGNumRight>
+		<SGOrder>2</SGOrder>
+		<ZeroFillDiscontinousAreas>False</ZeroFillDiscontinousAreas>
+		<NumZerosToFill>3</NumZerosToFill>
+		<ProcessMSMS>True</ProcessMSMS>
+		<ExportFileType>TEXT</ExportFileType>
+		<Process_MS>False</Process_MS>
+		<ScanBasedWorkflowType>standard</ScanBasedWorkflowType>
+		<SaturationThreshold>90000</SaturationThreshold>
+		<MaxMinutesPerScan>50</MaxMinutesPerScan>
+		<MaxMinutesPerFrame>50</MaxMinutesPerFrame>
+		<MaxHoursPerDataset>400</MaxHoursPerDataset>
+	</Miscellaneous>
+</parameters>
