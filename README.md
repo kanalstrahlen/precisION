@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="icons/logo.png" alt="precisION logo" width="500">
+  <img src="icons/logo2.png" alt="precisION logo" width="500" style="margin: 0; padding: 0;">
 </div>
 
 precisION (**precis**e and accurate **I**dentification **O**f **N**ative proteoforms) is an open-source software package that employs a hierarchical approach for the comprehensive analysis of native top-down mass spectrometry (nTDMS) data.
