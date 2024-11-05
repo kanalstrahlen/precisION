@@ -1,10 +1,13 @@
-# precisION
+<div align="center">
+  <img src="icons/logo.png" alt="precisION logo" width="500">
+</div>
+
 precisION (**precis**e and accurate **I**dentification **O**f **N**ative proteoforms) is an open-source software package that employs a hierarchical approach for the comprehensive analysis of native top-down mass spectrometry (nTDMS) data.
 precisION specifically aims to facilitate accurate interpretation of sequence ions in the absence of an intact mass, defined molecular composition, and/or complete database of protein modifications.
 However, the workflows implemented in precisION are also general, allowing the package to effectively analyse most intact protein fragmentation spectra.
 precisION is developed and maintained in the [Robinson group](https://robinsonweb.chem.ox.ac.uk/) at the [Kavli Institute for Nanoscience Discovery, University of Oxford](https://kavlinano.ox.ac.uk/).
 
-<img src="icons/overallWorkflow.png" alt="Image">
+<img src="icons/overallWorkflow.png" alt="precisION workflow">
 
 Our primary goal for precisION was to design a software package that facilitates continual user involvement throughout spectral analysis.
 This supervised approach combines the benefits of automated analyses (and the associated large-scale statistical tests) with the expertise of MS practitioners who can visually evaluate putative ion assignments.
