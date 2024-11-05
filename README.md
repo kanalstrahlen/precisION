@@ -4,6 +4,8 @@ precisION specifically aims to facilitate accurate interpretation of sequence io
 However, the workflows implemented in precisION are also general, allowing the package to effectively analyse most intact protein fragmentation spectra.
 precisION is developed and maintained in the [Robinson group](https://robinsonweb.chem.ox.ac.uk/) at the [Kavli Institute for Nanoscience Discovery, University of Oxford](https://kavlinano.ox.ac.uk/).
 
+<img src="icons/overallWorkflow.png" alt="Image">
+
 Our primary goal for precisION was to design a software package that facilitates continual user involvement throughout spectral analysis.
 This supervised approach combines the benefits of automated analyses (and the associated large-scale statistical tests) with the expertise of MS practitioners who can visually evaluate putative ion assignments.
 We reasoned that such semi-automated analyses would ensure accurate and informative spectral interpretation.
