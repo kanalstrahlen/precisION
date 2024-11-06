@@ -34,6 +34,7 @@ All you need to do is decompress the folder, transfer it to somewhere suitable, 
 
 ### Executing the Source Code
 precisION can be directly executed by Python 3 making it easy to use and modify.
+This option is also a little quicker.
 I recommend installing Anaconda and creating a new Python 3.9 virtual environment specifically for precisION.
 ```bash
 conda create --name precisION python=3.9 
