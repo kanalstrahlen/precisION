@@ -21,7 +21,7 @@ For any remaining questions, feature suggestions, or bug reports, please send me
 ### Documentation and Tutorials
 Full documentation for precisION and a quick start guide can be found on the [Releases](https://github.com/kanalstrahlen/precisION/releases) page.
 Additionally, we have made two video tutorials.
-[One](https://youtu.be/fgZHkNpur6Q) describes the software's basic functionality, whilst the [other](https://youtu.be/sgwC2zw7x4Y) explores more powerful functions.
+One ([Link](https://youtu.be/fgZHkNpur6Q)) describes the software's basic functionality, whilst the other ([Link](https://youtu.be/sgwC2zw7x4Y)) explores more powerful functions.
 The example datasets for these tutorials are linked in the video descriptions.
 
 ## Installing precisION
