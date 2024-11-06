@@ -85,3 +85,6 @@ Save the .txt file in a folder (this folder can contain other related spectra as
 
 ### Funding Acknowledgements
 precisION was developed as part of the project ‘A trans-omic platform to define molecular interactions underlying anhedonia at the blood–brain interface’ which was supported by Wellcome Leap as part of the Multi-Channel Psych Program. Additionally, precisION's development was also supported by a Medical Research Council programme grant (MR/V028839/1) and a Wellcome Trust Award (221795/Z/20/Z).
+
+### Third-Party Licenses
+This software includes third-party components under various open-source licenses. Please see the `licenses` folder for details on each dependency's license, and refer to the `NOTICE` file for attributions.
