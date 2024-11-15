@@ -7,6 +7,7 @@ from pyteomics import mass
 from brainpy import isotopic_variants
 import h5py
 from tqdm import tqdm
+from fastDatabaseSearchFunctions import FastDbSearchFunctions
 
 
 # to change; change to index search with nesteted B tree
@@ -542,9 +543,13 @@ class DbSearchFunctions():
     ):
         # count ion matches for each proteoform
         print('Searching b or c-type ions...')
-        b_match_list = self.count_matches_for_proteins(theo_b_ions, observed_ions, accuracy)
+        fast_search = FastDbSearchFunctions(accuracy)
+        b_match_list = fast_search.count_matches_for_proteins(theo_b_ions, observed_ions)
+        #b_match_list = self.count_matches_for_proteins(theo_b_ions, observed_ions, accuracy)
         print('Searching y or z-type ions...')
-        y_match_list = self.count_matches_for_proteins(theo_y_ions, observed_ions, accuracy)
+        fast_search = FastDbSearchFunctions(accuracy)
+        y_match_list = fast_search.count_matches_for_proteins(theo_y_ions, observed_ions)
+        #y_match_list = self.count_matches_for_proteins(theo_y_ions, observed_ions, accuracy)
         total_match_list = [b + y for b, y in zip(b_match_list, y_match_list)]
 
         # sort and find the top 100 matches

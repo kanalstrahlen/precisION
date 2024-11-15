@@ -12,6 +12,7 @@ from pyteomics import mass
 from tqdm import tqdm
 from scipy.stats import poisson
 import matplotlib.pyplot as plt
+from fastOffsetSearch import FastOffsetShiftCalculator
 
 
 matplotlib.rcParams["pdf.fonttype"] = 42
@@ -305,23 +306,31 @@ class OffsetShiftCalculator():
 
 
     def offset_scan(self, peak_list, theo_ions):
-        scan_spacing = self.threshold / 1000 / 1.5 # 2/3 the threshold at m/z 1000
 
-        num_points = int((self.upper_range - self.lower_range) // scan_spacing)
-
-        offset_list = np.linspace(self.lower_range, self.upper_range, num=num_points)
-        peak_list = np.array(peak_list)
-        theo_ions = np.array(theo_ions)
-
-        match_count_list = []
-
-        for offset in tqdm(offset_list, total=len(offset_list)):
-            temp_theo_ions = [ion_mass + offset for ion_mass in theo_ions]
-            if len(theo_ions) > 800:
-                match_count = self.count_matches(peak_list, temp_theo_ions)
-            else:
-                match_count = self.count_matched_ions(peak_list, temp_theo_ions)
-            match_count_list.append(match_count)
+        calculator = FastOffsetShiftCalculator(
+            threshold=self.threshold,
+            count_mode=self.count_mode,
+            lower_range=self.lower_range,
+            upper_range=self.upper_range
+        )
+        offset_list, match_count_list = calculator.offset_scan(peak_list, theo_ions)
+        #scan_spacing = self.threshold / 1000 / 1.5 # 2/3 the threshold at m/z 1000
+#
+        #num_points = int((self.upper_range - self.lower_range) // scan_spacing)
+#
+        #offset_list = np.linspace(self.lower_range, self.upper_range, num=num_points)
+        #peak_list = np.array(peak_list)
+        #theo_ions = np.array(theo_ions)
+#
+        #match_count_list = []
+#
+        #for offset in tqdm(offset_list, total=len(offset_list)):
+        #    temp_theo_ions = [ion_mass + offset for ion_mass in theo_ions]
+        #    if len(theo_ions) > 800:
+        #        match_count = self.count_matches(peak_list, temp_theo_ions)
+        #    else:
+        #        match_count = self.count_matched_ions(peak_list, temp_theo_ions)
+        #    match_count_list.append(match_count)
 
         return offset_list, match_count_list
 
