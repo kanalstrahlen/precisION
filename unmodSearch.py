@@ -7,7 +7,7 @@ import pandas as pd
 from unmodSearchValidation import UnmodSearchValidationWindow
 from internalSearchValidation import InternalSearchValidationWindow
 
-# to do; add c/z to everything
+
 
 class NoModSearchWindow(wx.Frame):
     def __init__(

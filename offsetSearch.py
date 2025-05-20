@@ -2,6 +2,7 @@ import math
 import bisect
 import re
 import wx
+import csv
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -17,15 +18,16 @@ from fastOffsetSearch import FastOffsetShiftCalculator
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 # to do; internal offset search or other way to 
-# identify  modified internal fragments other than massdiff
+# identify modifications only on internal fragments other than massdiff
 # could also add window to show which ions mass diff includes to help ID
-# for
 
-# to do; explore effect of mass defect on matching. if important
-# could correct
+# to do; based on trx data mass defect has no effect on num matches, over a large range there is a trend with offset
+# may explain discrepency between average of decoys in internal search vs limited scan
+# could correct for this relatively easy with offset-dependent function but how to quickly calculate?
+# may also move to a negative binomial as it seems to fit the data better
 
 class OffsetSearchWindow(wx.Frame):
     def __init__(self, parent, title, file_path, sequence, options):
@@ -128,6 +130,10 @@ class OffsetSearchWindow(wx.Frame):
         b_ion_offset, b_ion_num_matches = calculator.offset_scan(peak_list, theo_b_ions)
         print("Searching y-type ions...")
         y_ion_offset, y_ion_num_matches = calculator.offset_scan(peak_list, theo_y_ions)
+
+        #with open('test1.csv', 'w') as f:
+        #    writer = csv.writer(f, delimiter='\t')
+        #    writer.writerows(zip(b_ion_offset, b_ion_num_matches))
 
         b_ion_df = calculator.find_max_peaks(b_ion_offset, b_ion_num_matches)
         y_ion_df = calculator.find_max_peaks(y_ion_offset, y_ion_num_matches)

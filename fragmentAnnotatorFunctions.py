@@ -149,7 +149,7 @@ class AnnotatorFunctions():
             axs[1, 1].set_ylabel('Charge')
             axs[1, 1].set_title("b/c-type Ion Mass vs Charge")
 
-            y_ion_data = name_data[name_data['ion'].str.startswith(('b', 'z'), na=False)]
+            y_ion_data = name_data[name_data['ion'].str.startswith(('y', 'z'), na=False)]
             axs[1, 2].scatter(
                 y_ion_data["monoisotopic_mw"],
                 y_ion_data["charge"],

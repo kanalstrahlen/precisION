@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 warnings.filterwarnings('ignore')
 
 class RLPeakPicking():
-    def __init__(self, file_path, directory_path):
+    def __init__(self, file_path, directory_path, html_file_save):
         self.file_path = file_path
         self.directory_path = directory_path
         self.basename = os.path.basename(self.file_path).replace(".txt", "")
@@ -31,7 +31,8 @@ class RLPeakPicking():
             interpolated_mz,
             interpolated_intensity,
             res_coefficients,
-            noise_coefficients
+            noise_coefficients,
+            html_file_save
         )
 
         mz = [item[0] for item in rl_peaks]
@@ -59,7 +60,7 @@ class RLPeakPicking():
                 file.write(f"{row[0]}\t{row[1]}\n")
 
 
-    def richardson_lucy_centroid(self, mz, intensity, res, noise):
+    def richardson_lucy_centroid(self, mz, intensity, res, noise, html_file_save):
         num_windows = int((max(mz) - min(mz))/100)
         window_width = int(len(mz) / num_windows)
 
@@ -84,8 +85,7 @@ class RLPeakPicking():
             )[0]
             observed_spectrum[~np.isin(np.arange(len(observed_spectrum)), nonzero_indices)] = 1e-10
 
-            # to do make this faster, would it be possible to make this quicker b masking 0 data or soemthing
-            # seems to be primarily spacing, i have reduced this to a feasible level now w/ interpolation
+            # speed is primarily affected by spacing, i have reduced this to a feasible level now w/ interpolation
 
             # Initialize parameters
             num_iterations = 100000
@@ -176,7 +176,8 @@ class RLPeakPicking():
             total_mz.extend(mz_values)
             total_convolution.extend(convolved)
 
-        self.generate_decon_plot(peaks_mz, peaks_intensity, total_mz, total_convolution, mz, intensity)
+        if html_file_save:
+            self.generate_decon_plot(peaks_mz, peaks_intensity, total_mz, total_convolution, mz, intensity)
 
         return list(zip(peaks_mz, peaks_intensity)), list(zip(total_mz, total_convolution))
 
@@ -583,7 +584,7 @@ class RLPeakPicking():
 
 
 class CWTPeakPicking():
-    def __init__(self, file_path, directory_path):
+    def __init__(self, file_path, directory_path, html_file_save):
         self.file_path = file_path
         self.directory_path = directory_path
         self.basename = os.path.basename(self.file_path).replace(".txt", "")
@@ -609,12 +610,13 @@ class CWTPeakPicking():
         self.make_mzml(mz, intensity, 'centroid')
 
         self.save_data(cwt_peaks)
-        self.generate_decon_plot(
-            mz,
-            intensity,
-            self.mz_values,
-            self.intensities
-        )
+        if html_file_save:
+            self.generate_decon_plot(
+                mz,
+                intensity,
+                self.mz_values,
+                self.intensities
+            )
 
 
     def save_data(self, cwt_peaks):

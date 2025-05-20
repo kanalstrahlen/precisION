@@ -12,6 +12,7 @@ from denovoFunctions import DenovoFunctions
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 
 class DenovoWindow(wx.Frame):
@@ -194,7 +195,7 @@ class DenovoWindow(wx.Frame):
         self.load_spectrum(self.file_path)
         self.protein_selection_id_list = [] #list of proteins selected to save in xml file
 
-        # generate fasta file. have to do otherwise database search is incredibly slow
+        # generate fasta file
         xml_basename = self.database_file.replace(".xml", "")
         fasta_file = f"{xml_basename}.fasta"
 

@@ -5,7 +5,6 @@ import wx
 import pandas as pd
 from peakProperties import PeakProperties
 
-# to do: https://stackoverflow.com/questions/20295646/python-ascii-plots-in-terminal
 
 class Cluster:
     def __init__(self, file_path, directory_path, cluster_ppm):

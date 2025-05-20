@@ -21,7 +21,7 @@ from filterAssignments import FilterAssignmentsWindow
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 class FragmentAnnotatorWindow(wx.Frame):
     def __init__(self, parent, title, file_path, directory_path):

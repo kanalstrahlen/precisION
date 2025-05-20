@@ -254,6 +254,7 @@ class DefineTerminiFunctions():
                 #print(sum(match_per_res))
                 #print(sum(match_per_res))
                 #print(sum(match_per_res)/len(match_per_res))
+                #print(match_per_res)
 
         # same for y ions
         for i, mod in tqdm(
@@ -297,6 +298,7 @@ class DefineTerminiFunctions():
                 #print(sum(match_per_res))
                 #print(sum(match_per_res))
                 #print(sum(match_per_res)/len(match_per_res))
+                #print(match_per_res)
 
 
         # general plotting parameters

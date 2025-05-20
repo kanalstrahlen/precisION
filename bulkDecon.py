@@ -11,7 +11,7 @@ from decon import Thrash, TopFD, Cluster
 
 class DeconvolutionWindow(wx.Frame):
     def __init__(self, parent, title, directory_path):
-        super().__init__(parent, title=title, size=(430, 585))
+        super().__init__(parent, title=title, size=(430, 610))
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -166,10 +166,21 @@ class DeconvolutionWindow(wx.Frame):
         decon_button = wx.Button(panel, label="Deconvolve spectra", size=(400, 30))
         decon_button.Bind(wx.EVT_BUTTON, self.on_decon_button)
 
+        #html_sizer: save html file option
+        html_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        html_label = wx.StaticText(panel, label="Save deconvolved spectrum (large file size):")
+        self.html_checkbox = wx.CheckBox(panel)
+        self.html_checkbox.SetValue(True)
+
+        html_sizer.Add(html_label, 0)
+        html_sizer.Add(self.html_checkbox, 0, wx.LEFT, 5)
+
         main_sizer.Add(title, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(subtext, 0, wx.EXPAND | wx.ALL, 5)
         main_sizer.Add(options_sizer, 0)
         main_sizer.Add(decon_button, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
+        main_sizer.Add(html_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 5)
 
         icon = wx.Icon("./icons/icon.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
@@ -191,6 +202,7 @@ class DeconvolutionWindow(wx.Frame):
         topfd_decon_params = self.read_topfd_params()
         cluster_ppm = self.cluster_cutoff_input.GetValue()
         cluster_s2n = self.cluster_s2n_input.GetValue()
+        html_file = self.html_checkbox.GetValue()
 
         print("Deconvolution can take some time. Please be patient.")
 
@@ -222,7 +234,7 @@ class DeconvolutionWindow(wx.Frame):
                     print('Peak picking already complete. Rerunning deconvolution.')
                 else:
                     print('Picking peaks using RL deconvolution.')
-                    RLPeakPicking(file_path, folder_path)
+                    RLPeakPicking(file_path, folder_path, html_file)
 
                 Thrash(convolved_file, folder_path, thrash_decon_params, file_base, True)
                 TopFD(centroid_mzml, folder_path, topfd_decon_params)
@@ -242,7 +254,7 @@ class DeconvolutionWindow(wx.Frame):
                     print('Peak picking already complete. Rerunning deconvolution.')
                 else:
                     print('Picking peaks using CWT.')
-                    CWTPeakPicking(file_path, folder_path)
+                    CWTPeakPicking(file_path, folder_path, html_file)
 
                 Thrash(file_path, folder_path, thrash_decon_params, file_base, False)
                 TopFD(centroid_mzml, folder_path, topfd_decon_params)

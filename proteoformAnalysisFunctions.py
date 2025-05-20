@@ -5,6 +5,8 @@ from pyteomics import mass, parser
 from brainpy import isotopic_variants
 from scipy.optimize import minimize
 
+# to do: convert to cython for speedup
+
 class ProteoformAnalysisRun():
     def generate_theoretical_fragments(self, sequence, max_charge, min_mz, max_mz, ion_type):
         unmod_seq, mod_arr = self.process_sequence_string(sequence)

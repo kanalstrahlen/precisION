@@ -10,7 +10,7 @@ from tqdm import tqdm
 from fastDatabaseSearchFunctions import FastDbSearchFunctions
 
 
-# to change; change to index search with nesteted B tree
+# to change; change to index search with nested B tree
 
 class DbSearchFunctions():
     def write_read_proteoform_file(

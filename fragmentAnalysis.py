@@ -18,7 +18,7 @@ import textalloc as ta
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 
 class FragmentAnalysisWindow(wx.Frame):
@@ -294,12 +294,16 @@ class FragmentAnalysisWindow(wx.Frame):
             f"{basename}.centroid.cwt.txt"
         )
         run = FragmentStatistics(self.file_path, spectrum_path, name)
-        print("\nSpectrum statistics")
+        print("")
+        print("*************************************************")
+        print("               Spectrum statistics               ")
+        print("*************************************************")
         run.calc_pc_peaks_assigned()
         run.calc_pc_intens_assigned()
         run.calc_pc_tic_assigned()
+        run.mass_error()
         run.protein_summary()
-        print(f"\n\nFor {name}...")
+        print(f"\nFor {name}...")
         run.pc_signal()
         run.sequence_coverage()
         print(f"Ion type breakdown for {name}:")
@@ -1178,6 +1182,22 @@ class FragmentStatistics():
         assigned_intens = assigned_peaks['abundance'].sum()
         pc_assigned = round(assigned_intens / decon_intens * 100, 1)
         print(f"Approx. {pc_assigned}% of the deconvoluted signal is assigned.")
+        
+        if pc_assigned <= 33.33:
+            print("")
+            print(
+                "Less than a third of the deconvoluted signal has been assigned.",
+                "A low percentage of assigned signal can indicate that the assigned sequence(s) are incorrect.",
+                " Care should be taken when interpreting the resulting data.",
+                "However, it may also indicate the presence of other biomolecules",
+                " and/or their fragments in the spectrum that have been left unassigned.",
+                "To check this, examine the spectrum using Fragment Assignment -> Show Spectrum",
+                " to identify prominent unassigned peaks.",
+                "If these peaks cannot be reliably assigned to protein fragments ",
+                "(i.e., they do not correspond to other unassigned proteins or modified sequence ions), ",
+                "they may be identified using MS3 measurements along with de novo peptide sequencing ",
+                "or metabolite annotation tools such as SIRIUS.")
+            print("")
 
 
     def calc_pc_tic_assigned(self):
@@ -1189,6 +1209,12 @@ class FragmentStatistics():
 
         pc_assigned = round(total_assigned_intens / tic * 100, 1)
         print(f"{pc_assigned}% of the total ion current is assigned.")
+
+
+    def mass_error(self):
+        assigned_peaks = self.assignment_df.dropna(subset=['name'])
+        max_error = round(assigned_peaks['ppm_error'].abs().max(), 2)
+        print(f"Maximum mass error = {max_error} ppm")
 
 
     def protein_summary(self):
@@ -1239,12 +1265,47 @@ class FragmentStatistics():
 
     def ion_type_breakdown(self):
         protein_peaks = self.assignment_df[self.assignment_df['name'] == self.name]
-        ion_types = list(set([ion[0] for ion in protein_peaks['ion'].dropna().unique()]))
-        ions = [ion[0] for ion in protein_peaks['ion']]
+        ions = [ion[0] for ion in protein_peaks['ion'].dropna()]
 
-        for ion_type in ion_types:
-            num = ions.count(ion_type)
-            print(f"{num} {ion_type}-type ions.")
+        ion_counts = {
+            'I': ions.count('I'),
+            'b': ions.count('b'),
+            'y': ions.count('y'),
+        }
+
+        for ion_type, count in ion_counts.items():
+            print(f"{count} {ion_type}-type ions.")
+    
+        b_ion_count = ion_counts['b']
+        y_ion_count = ion_counts['y']
+        i_ion_count = ion_counts['I']
+
+        if b_ion_count <= 5:
+            print("\nLess than 5 b-type ions have been assigned. This may be due to:")
+            print("1) Incorrect N-terminal sequence, modification state, or N-terminus.")
+            print("2) An uneven charge distribution.")
+            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+        if y_ion_count <= 5:
+            print("\nLess than 5 y-type ions have been assigned. This may be due to:")
+            print("1) Incorrect C-terminal sequence, modification state, or C-terminus.")
+            print("2) An uneven charge distribution.")
+            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+
+        if b_ion_count >= 3 * y_ion_count and y_ion_count > 5:
+            print("\nb-type ions significantly outnumber y-type ions. This may be due to:")
+            print("1) Incorrect C-terminal sequence, modification state, or C-terminus.")
+            print("2) An uneven charge distribution.")
+            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+        elif y_ion_count >= 3 * b_ion_count and b_ion_count > 5:
+            print("\ny-type ions significantly outnumber b-type ions. This may be due to:")
+            print("1) Incorrect N-terminal sequence, modification state, or N-terminus.")
+            print("2) An uneven charge distribution.")
+            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+
+        if i_ion_count >= 2 * (b_ion_count + y_ion_count):
+            print("\nA very large number of internal fragments have been assigned.")
+            print("This may indicate the collision energy is too high to observe labile modifications.")
+
 
 
 

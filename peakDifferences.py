@@ -9,7 +9,7 @@ from scipy.signal import savgol_filter
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 class PeakDifferencesWindow(wx.Frame):
     def __init__(self, parent, title, file_path, options):

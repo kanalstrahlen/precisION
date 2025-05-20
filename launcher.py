@@ -15,7 +15,8 @@ matplotlib.rcParams['font.sans-serif'] = "Arial"
 matplotlib.rcParams['font.family'] = "sans-serif"
 
 # to do; alter peaklist to envelopelist and update all other names
-# to do evaluate cosine score for socring peak fits
+# to do evaluate cosine score for scoring peak fits vs current score
+# as will enable better comparison w/ other software
 
 class LauncherWindow(wx.Frame):
     def __init__(self, parent):

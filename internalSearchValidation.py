@@ -20,7 +20,10 @@ import pandas as pd
 # proportion of theoretical ions matched, instead of absolute number? 
 # Will do later. Not that much of a problem as won't lead to wrong assignmnets,
 # may just miss some. Also most of the ones missed should be covered by other terminal
-# sequence ions.
+# sequence ions. Decrease with increase neg offset also observable for continous scan
+# trx analysis -- could also be used to correct maybe but further confirms it just decreases
+# sensitivity rather than leading to false positives.
+
 
 class InternalSearchValidationWindow(wx.Frame):
     def __init__(

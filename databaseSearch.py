@@ -17,6 +17,7 @@ from databaseSearchFunctions import DbSearchFunctions
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 
 class DbSearchWindow(wx.Frame):
@@ -660,14 +661,35 @@ class DbSearchSpectrumPanel(wx.Panel):
 
         if nfps == None:
             pass
-        else:
+        elif nfps > 5:
             label_text = f"nFPS: {round(nfps, 2)}"
             self.ax.annotate(
                 label_text,
                 xy=(0.995,0.99),
                 xycoords="axes fraction",
                 ha="right",
-                va="top"
+                va="top",
+                color="green"
+            )
+        elif 2 <= nfps <= 5:
+            label_text = f"nFPS: {round(nfps, 2)}"
+            self.ax.annotate(
+                label_text,
+                xy=(0.995,0.99),
+                xycoords="axes fraction",
+                ha="right",
+                va="top",
+                color='orange'
+            )
+        elif nfps < 2:
+            label_text = f"nFPS: {round(nfps, 2)}"
+            self.ax.annotate(
+                label_text,
+                xy=(0.995,0.99),
+                xycoords="axes fraction",
+                ha="right",
+                va="top",
+                color='red'
             )
 
         # plotting b ion averagine envelopes
