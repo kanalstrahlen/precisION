@@ -89,7 +89,6 @@ We recommend storing these files in a folder such as `C:/precisIONfiles/yourProj
 An example dataset is provided in the `./ExampleDataFiles/` directory.
 This spectrum was acquired from the fragmentation of a native protein in bovine retina.
 Please follow the instructions in the provided documentation (`precisionDocumentation.pdf` and `precisionQuickStartGuide.pdf`) to process this spectrum.
-Example outputs for this file are provided in the `./ExampleDataFiles/output` directory.
 
 For this example, rapid deconvolution should take less than a minute and extensive deconvolution should take approx. 15 minutes.
 After training (200 envelope traning set), envelope classification should take approx. 1.5 min.
