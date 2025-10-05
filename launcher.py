@@ -27,8 +27,9 @@ class LauncherWindow(wx.Frame):
             style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
         )
 
-        print("precisION")
+        print("precisION v.0.3.0")
         print("If you use this software, please cite:")
+        print("Bennett, J.L. et al. Uncovering hidden protein modifications with native top-down mass spectrometry. Nat Methods (2025).")
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -56,18 +57,45 @@ class LauncherWindow(wx.Frame):
             wx.FONTWEIGHT_BOLD
             )
         )
-        pub_text = wx.adv.HyperlinkCtrl(
+
+        pub_sizer1 = wx.BoxSizer(wx.HORIZONTAL)
+        pub_text1 = wx.adv.HyperlinkCtrl(
+            panel,
+            label="Manuscript",
+            url="https://doi.org/10.1038/s41592-025-02846-5"
+        )
+
+        pub_text2 = wx.adv.HyperlinkCtrl(
             panel,
             label="GitHub",
             url="https://github.com/kanalstrahlen/precisION"
         )
+
+        pub_sizer1.Add(pub_text1, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        pub_sizer1.Add(pub_text2, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT)
+
+        pub_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
+        pub_text3 = wx.adv.HyperlinkCtrl(
+            panel,
+            label="User Guide",
+            url="https://github.com/kanalstrahlen/precisION/releases/download/v.0.2.0b/precisionDocumentation.pdf"
+        )
+        pub_text4 = wx.adv.HyperlinkCtrl(
+            panel,
+            label="Quick Start Guide",
+            url="https://github.com/kanalstrahlen/precisION/releases/download/v.0.2.0b/precisionQuickStartGuide.pdf"
+        )
+
+        pub_sizer2.Add(pub_text3, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        pub_sizer2.Add(pub_text4, 0, wx.ALIGN_CENTER_VERTICAL)
 
         info_sizer.Add(bitmap, 0, wx.ALIGN_CENTER_HORIZONTAL)
         info_sizer.Add(title_text, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.ALL, 10)
         info_sizer.Add(sub_text, 0, wx.ALIGN_CENTER_HORIZONTAL)
         info_sizer.Add(sub_text2, 0, wx.ALIGN_CENTER_HORIZONTAL)
         info_sizer.Add(cite_text, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 10)
-        info_sizer.Add(pub_text, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        info_sizer.Add(pub_sizer1, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        info_sizer.Add(pub_sizer2, 0, wx.ALIGN_CENTER_HORIZONTAL)
 
         main_sizer.Add(info_sizer, 0, wx.ALL | wx.CENTER, 10)
 

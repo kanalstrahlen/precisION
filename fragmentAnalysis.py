@@ -255,6 +255,7 @@ class FragmentAnalysisWindow(wx.Frame):
 
         structure = Structure(name, peak_list, pdb_file_path)
         structure.gen_structure()
+        structure.gen_structure_with_internals()
 
 
     def on_heatmap_button(self, event):
@@ -776,7 +777,45 @@ class Structure():
         norm_value = max([min_value, max_value])
         intensity_array = intensity_array / norm_value * 100
 
-        self.edit_bfactor(self.pdb_file_path, intensity_array)
+        self.edit_bfactor(self.pdb_file_path, intensity_array, "terminal")
+
+
+    def gen_structure_with_internals(self):
+        name_data = self.peak_list[self.peak_list['name'] == self.name]
+        sequence = name_data['sequence'].tolist()[0]
+
+        count_array = np.zeros(len(sequence)-1)
+
+        tuple_list = []
+
+        for _, row in name_data.iterrows():
+            ion_name = row["ion"]
+            ion_serie = ion_name[0]
+
+            end_index = int(ion_name.find(' '))
+
+            if ion_serie in ("b", "c"):
+                ion_index = int(ion_name[1:end_index])
+                pos_tuple = (1, int(ion_index))
+            elif ion_serie == "I":
+                ion_range = ion_name[1:end_index]
+                indices = ion_range.split("-")
+                start = int(indices[0]) + 1
+                end = int(indices[1])
+                pos_tuple = (start, end)
+            elif ion_serie in ("y", "z"):
+                ion_index = int(ion_name[1:end_index])
+                pos_tuple = (len(sequence) - int(ion_index) + 1, len(sequence))
+
+            tuple_list.append(pos_tuple)
+
+        tuple_list = list(set(tuple_list))
+        for start, end in tuple_list:
+            count_array[start-1:end-1] += 1
+
+        count_array = count_array / max(count_array) * 100
+
+        self.edit_bfactor(self.pdb_file_path, count_array, "internal")
 
 
     def renumber_and_delete(self, pdb_file_path, sequence):
@@ -886,7 +925,7 @@ class Structure():
         return coords
 
 
-    def edit_bfactor(self, pdb_file_path, b_factor_array):
+    def edit_bfactor(self, pdb_file_path, b_factor_array, structure_type):
         parser = PDB.PDBParser(QUIET=True)
         renumbered_path = pdb_file_path.replace(".pdb", ".renumbered.pdb")
         structure = parser.get_structure('protein', renumbered_path)
