@@ -98,7 +98,33 @@ The fragment-level open search with a mass offset range of -100 to 500 Da should
 
 ## Further Information
 ### Citation
+If you use **precisION**, please cite:
 
+> **Bennett, J.L., El-Baba, T.J., Zouboulis, K.C. et al.**  
+> *Uncovering hidden protein modifications with native top-down mass spectrometry.*  
+> *Nature Methods* (2025).  
+> [https://doi.org/10.1038/s41592-025-02846-5](https://doi.org/10.1038/s41592-025-02846-5)
+
+## Key Dependencies
+We also encourage users to cite the key dependencies of **precisION**, namely **TopFD**, **THRASH**, and **nFPS**.
+
+### TopFD
+> **Basharat, A.R., Zang, Y., Sun, L., & Liu, X.**  
+> *TopFD: A Software Tool for Deconvolution of Intact Protein Mass Spectra.*  
+> *Analytical Chemistry* **95**(21), 8189–8196 (2023).  
+> [https://doi.org/10.1021/acs.analchem.2c05244](https://doi.org/10.1021/acs.analchem.2c05244)
+
+### THRASH
+> **Horn, D.M., Zubarev, R.A., & McLafferty, F.W.**  
+> *Automated reduction and interpretation of high resolution electrospray mass spectra of large molecules.*  
+> *Journal of the American Society for Mass Spectrometry* **11**(4), 320–332 (2000).  
+> [https://doi.org/10.1016/S1044-0305(99)00157-9](https://doi.org/10.1016/S1044-0305(99)00157-9)
+
+### nFPS
+> **Ives, A.N., Su, T., Durbin, K.R., Early, B.P., Dos Santos Seckler, H., Fellers, R.T., LeDuc, R.D., Schachner, L.F., Patrie, S.M., & Kelleher, N.L.**  
+> *Using 10,000 Fragment Ions to Inform Scoring in Native Top-down Proteomics (nFPS).*  
+> *Journal of the American Society for Mass Spectrometry* **31**(7), 1398–1409 (2020).  
+> [https://doi.org/10.1021/jasms.0c00026](https://doi.org/10.1021/jasms.0c00026)
 
 ### Funding Acknowledgements
 precisION was developed as part of the project ‘A trans-omic platform to define molecular interactions underlying anhedonia at the blood–brain interface’ which was supported by Wellcome Leap as part of the Multi-Channel Psych Program. Additionally, precisION's development was also supported by a Medical Research Council programme grant (MR/V028839/1) and a Wellcome Trust Award (221795/Z/20/Z).
