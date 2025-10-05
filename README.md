@@ -105,22 +105,21 @@ If you use **precisION**, please cite:
 > *Nature Methods* (2025).  
 > [https://doi.org/10.1038/s41592-025-02846-5](https://doi.org/10.1038/s41592-025-02846-5)
 
-## Key Dependencies
-We also encourage users to cite the key dependencies of **precisION**, namely **TopFD**, **THRASH**, and **nFPS**.
+We also encourage users to cite key algorithms use in **precisION**.
 
-### TopFD
+#### TopFD
 > **Basharat, A.R., Zang, Y., Sun, L., & Liu, X.**  
 > *TopFD: A Software Tool for Deconvolution of Intact Protein Mass Spectra.*  
 > *Analytical Chemistry* **95**(21), 8189–8196 (2023).  
 > [https://doi.org/10.1021/acs.analchem.2c05244](https://doi.org/10.1021/acs.analchem.2c05244)
 
-### THRASH
+#### THRASH
 > **Horn, D.M., Zubarev, R.A., & McLafferty, F.W.**  
 > *Automated reduction and interpretation of high resolution electrospray mass spectra of large molecules.*  
 > *Journal of the American Society for Mass Spectrometry* **11**(4), 320–332 (2000).  
 > [https://doi.org/10.1016/S1044-0305(99)00157-9](https://doi.org/10.1016/S1044-0305(99)00157-9)
 
-### nFPS
+#### nFPS
 > **Ives, A.N., Su, T., Durbin, K.R., Early, B.P., Dos Santos Seckler, H., Fellers, R.T., LeDuc, R.D., Schachner, L.F., Patrie, S.M., & Kelleher, N.L.**  
 > *Using 10,000 Fragment Ions to Inform Scoring in Native Top-down Proteomics (nFPS).*  
 > *Journal of the American Society for Mass Spectrometry* **31**(7), 1398–1409 (2020).  
