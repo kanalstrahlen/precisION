@@ -105,7 +105,7 @@ If you use **precisION**, please cite:
 > *Nature Methods* (2025).  
 > [https://doi.org/10.1038/s41592-025-02846-5](https://doi.org/10.1038/s41592-025-02846-5)
 
-We also encourage users to cite key algorithms use in **precisION**.
+We also encourage users to cite key algorithms used in **precisION**.
 
 #### TopFD
 > **Basharat, A.R., Zang, Y., Sun, L., & Liu, X.**  
