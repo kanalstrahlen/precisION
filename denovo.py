@@ -8,7 +8,9 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 from Bio import SeqIO
+
 from denovoFunctions import DenovoFunctions
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -201,9 +203,9 @@ class DenovoWindow(wx.Frame):
 
         # if fasta file already exists, use already created file
         if os.path.exists(fasta_file):
-            print(f"Using {fasta_file}...")
+            info(f"Using {fasta_file}...")
         else:
-            print("Generating FASTA file...")
+            info("Generating FASTA file...")
             with open(self.database_file, "r") as file, open(fasta_file, "w") as output_handle:
                 records = SeqIO.parse(file, "uniprot-xml")
                 SeqIO.write(records, output_handle, "fasta")
@@ -278,8 +280,9 @@ class DenovoWindow(wx.Frame):
 
         try:
             self.tag_list_box.InsertItems(self.peptides, 0)
+            success("Sequence tag search complete.")
         except:
-            print("No sequence tags found with the current search parameters.")
+            warn("No sequence tags found with the current search parameters.")
 
 
     def on_tag_select(self, event):
@@ -346,8 +349,9 @@ class DenovoWindow(wx.Frame):
         if len(self.prot_name_list) >= 1:
             self.proteins_list_box.Clear()
             self.proteins_list_box.InsertItems(self.prot_name_list, 0)
+            success("Matching proteins found")
         else:
-            print("No matching proteins found!")
+            warn("No matching proteins found!")
 
 
     def on_protein_select(self, event):
@@ -368,37 +372,39 @@ class DenovoWindow(wx.Frame):
         protein_index = self.proteins_list_box.GetSelection()
         up_id = self.prot_id_list[protein_index]
         self.protein_selection_id_list.append(up_id)
-        print("Added protein. Remember to save the file.")
+        if len(up_id) >= 1:
+            info("[b]Added protein. Remember to save the file.")
 
 
     def on_add_tag_matches_button(self, event):
         for up_id in self.prot_id_list:
             self.protein_selection_id_list.append(up_id)
-        print("Added proteins that match the selected tag. Remember to save the file.")
+        if len(up_id) >= 1:
+            info("[b]Added proteins that match the selected tag. Remember to save the file.")
 
 
     def on_add_all_matches_button(self, event):
         run = DenovoFunctions()
-        print("Searching for all matches:")
+        info("[b]Searching for all matches:")
         for tag in self.peptides:
             prot_id_list, prot_name_list, _, _, _ = run.search_uniprot_fasta(
                 self.database_file,
                 tag
             )
             if len(prot_name_list) > 0:
-                print(f"Matched {tag} with:")
+                info(f"Matched {tag} with:")
                 for name in prot_name_list:
-                    print(name)
+                    info(name)
             for up_id in prot_id_list:
                 self.protein_selection_id_list.append(up_id)
-        print("Added proteins that match the list of tags. Remember to save the file.")
+        info("[b]Added proteins that match the list of tags. Remember to save the file.")
 
 
     def on_save_xml_button(self, event):
         selected_ids = set(self.protein_selection_id_list)
-        print("Generating .xml file for the following records:")
+        success("Generating .xml file for the following records:")
         for identifier in selected_ids:
-            print(identifier)
+            info(identifier)
         self.write_xml(selected_ids)
 
 
@@ -436,7 +442,7 @@ class DenovoWindow(wx.Frame):
                 if len(last_line) > 1:
                     last_line.pop(0)
             output_file.writelines(last_line)
-            print(f"Saved selected entries to {save_path}")
+            info(f"Saved selected entries to {save_path}")
 
 
 

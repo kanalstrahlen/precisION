@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 
 from classifier import PeakListClassifier
+from logger import info, warn, error, success
 
 class ValidationWindow(wx.Frame):
     def __init__(self, parent, title, file_path, directory_path, num_shuffle):
@@ -277,7 +278,7 @@ class ValidationWindow(wx.Frame):
             # move to the next peak and update plot
             self.i += 1
             self.plot_peaks(self.i)
-
+            self.plot_panel.canvas.draw()
         else:
             self.on_finishing_classification()
 
@@ -341,24 +342,28 @@ class ValidationWindow(wx.Frame):
             # move to the next peak and update plot
             self.i += 1
             self.plot_peaks(self.i)
-
+            self.plot_panel.canvas.draw()
         else:
-            print("Classification complete.")
-            print("Please press 't'.")
+            success("Classification complete.")
+            info("Please press 't'.")
 
 
     def on_finished_button(self, event):
-        print("Starting classification...")
+        info("[b]Starting classification...")
         self.peak_list.sort_values(by="IndexColumn").to_csv(self.output_file, index=False)
-        PeakListClassifier(self.output_file)
-        self.Close()
+        wx.BeginBusyCursor()
+        try:
+            PeakListClassifier(self.output_file)
+            self.Close()
+        finally:
+            wx.EndBusyCursor()
 
 
     def on_finishing_classification(self):
-        print("Finished classification")
+        success("Finished classification")
         self.peak_list["prediction"] = self.peak_list["validated"]
         self.peak_list.sort_values(by="IndexColumn").to_csv(self.output_file, index=False)
-        print(f"Saved filtered peak list as: {self.output_file}")
+        info(f"Saved filtered peak list as: {self.output_file}")
         self.Close()
 
 
@@ -460,8 +465,6 @@ class ValidationPlotsPanel(wx.Panel):
                         color=label_color
                     )
 
-        self.canvas.draw()
-
 
     def plot_subplot_1(self, true_peaks, false_peaks):
         ax = self.ax_subplots[0]
@@ -470,8 +473,6 @@ class ValidationPlotsPanel(wx.Panel):
         x_labels = ["True", "False"]
         y_values = [true_peaks, false_peaks]
         ax.bar(x_labels, y_values, color=["#6ab4e6", "#cd4120"], alpha=0.8)
-        self.canvas.draw()
-
 
     def plot_subplot_2(self, x, y, selection):
         ax = self.ax_subplots[1]
@@ -479,7 +480,6 @@ class ValidationPlotsPanel(wx.Panel):
             ax.scatter(x, y, color="#84c2ea")
         elif selection == False:
             ax.scatter(x, y, color="#d4644c")
-        self.canvas.draw()
 
 
     def plot_subplot_3(
@@ -519,7 +519,6 @@ class ValidationPlotsPanel(wx.Panel):
         ax.bar(categories, false, bottom=true, color="#cd4120", alpha=0.8)
         ax.set_xticks(range(len(categories)))
         ax.set_xticklabels(categories, rotation=90)
-        self.canvas.draw()
 
 
     def plot_subplot_4(self, true_fits, false_fits):
@@ -570,7 +569,6 @@ class ValidationPlotsPanel(wx.Panel):
         ax.set_ylim((-abs(lim), abs(lim)))
         ax.axhline(y=0, color="black", linestyle="dashed", linewidth=0.5)
         ax.legend(facecolor="#f0f0f0")
-        self.canvas.draw()
 
 
     def on_size(self, event):

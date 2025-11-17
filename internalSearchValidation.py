@@ -15,14 +15,8 @@ import wx
 import numpy as np
 import pandas as pd
 
-# to do; we should probably factor in the number of theoretical fragments
-# considered into the calculation of E-values. Could calculate distrubution for
-# proportion of theoretical ions matched, instead of absolute number? 
-# Will do later. Not that much of a problem as won't lead to wrong assignmnets,
-# may just miss some. Also most of the ones missed should be covered by other terminal
-# sequence ions. Decrease with increase neg offset also observable for continous scan
-# trx analysis -- could also be used to correct maybe but further confirms it just decreases
-# sensitivity rather than leading to false positives.
+from logger import info, warn, error, success
+
 
 
 class InternalSearchValidationWindow(wx.Frame):
@@ -145,17 +139,17 @@ class InternalSearchValidationWindow(wx.Frame):
         self.spectrum_x_array = np.array(self.spectrum_x)
         self.spectrum_y = self.spectrum[:, 1]
 
-        print("Calculating background matching...")
+        info("Calculating background matching...")
         expected = self.calculate_background()
-        print(f"Mean background matching = {expected}")
-        print("Identifying sets of internal fragments...")
+        info(f"Mean background matching = {expected}")
+        info("Identifying sets of internal fragments...")
         n_term_set, c_term_set = self.identify_sets(expected)
         if (len(self.sequence)) in c_term_set:
             c_term_set.remove(len(self.sequence))
         if 0 in n_term_set:
             n_term_set.remove(0)
         if len(n_term_set) == 0 and len(c_term_set) == 0:
-            print("No significant internal fragments detected.")
+            warn("No significant internal fragments detected.")
             self.Close()
             return
         self.construct_matched_df(n_term_set, c_term_set)
@@ -168,6 +162,7 @@ class InternalSearchValidationWindow(wx.Frame):
         for tested_ion in self.matched_envelopes["obs_index"].to_list():
             self.tested_ions.append(tested_ion)
         if self.length_match_list >= 1:
+            self.precomputed_data = self.precompute_fits(self.matched_envelopes, self.stage)
             self.iterate_over_peaks(self.iteration, self.matched_envelopes, self.stage)
         else:
             self.neutral_loss_search()
@@ -299,135 +294,202 @@ class InternalSearchValidationWindow(wx.Frame):
         self.matched_envelopes = self.matched_envelopes.reset_index(drop=True)
 
 
-    def iterate_over_peaks(self, i, matched_peaks, stage):
+    def precompute_fits(self, matched_peaks, stage):
+        info(f"Computing fits for {len(matched_peaks)} envelopes...")
+        
+        precomputed_results = []
+        
         def residual(scale_factor, list1, list2):
             scaled_list1 = np.array(list1) * scale_factor
             norm_list_1 = [(item / max(scaled_list1)) for item in scaled_list1]
             return np.sum(((scaled_list1 - list2) ** 2) * norm_list_1)
-
-        self.observed_ion = matched_peaks["obs_index"][i]
-        charge = int(self.assignment_df["charge"][self.observed_ion])
-
-        if stage == "internal":
-            ion_type = matched_peaks["ion_type"][i]
-            theo_start_index = int(matched_peaks["theo_start_index"][i])
-            theo_end_index = int(matched_peaks["theo_end_index"][i])
-            if ion_type == "I":
-                ion_sequence = self.sequence[theo_start_index:theo_end_index]
-                ion_formula = self.calculate_molecular_formula(ion_sequence)
-                self.ion_name = f"{ion_type}{theo_start_index}-{theo_end_index} ({charge}+)"
-                n_site1 = self.sequence[theo_start_index-1]
-                c_site1 = self.sequence[theo_start_index]
-                self.frag_site1 = n_site1 + c_site1
-                n_site2 = self.sequence[theo_end_index-1]
-                c_site2 = self.sequence[theo_end_index]
-                self.frag_site2 = n_site2 + c_site2
-
-            self.adduct = ""
-            self.loss = ""
-            self.total_adduct = ""
-            self.total_loss = ""
-
-        elif stage == "loss":
-            self.ion_name = matched_peaks["original_ion_name"][i]
-            self.frag_site = matched_peaks["frag_site"][i]
-            ion_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
-            original_formula = self.parse_molecular_formula(
-                matched_peaks["original_ion_formula"][i]
-            )
-            adduct_formula = self.parse_molecular_formula(matched_peaks["adduct"][i])
-            loss_formula = self.parse_molecular_formula(matched_peaks["loss"][i])
-            for element, count in original_formula.items():
-                ion_formula[element] += count
-            for element, count in adduct_formula.items():
-                ion_formula[element] += count
-            for element, count in loss_formula.items():
-                ion_formula[element] += -1 * count
-
-            total_adduct_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
-            if type(matched_peaks["original_ion_adduct"][i]) == str:
-                original_adduct_formula = self.parse_molecular_formula(
-                    matched_peaks["original_ion_adduct"][i]
+        
+        for i in range(len(matched_peaks)):
+            observed_ion = matched_peaks["obs_index"][i]
+            charge = int(self.assignment_df["charge"][observed_ion])
+            
+            if stage == "internal":
+                ion_type = matched_peaks["ion_type"][i]
+                theo_start_index = int(matched_peaks["theo_start_index"][i])
+                theo_end_index = int(matched_peaks["theo_end_index"][i])
+                if ion_type == "I":
+                    ion_sequence = self.sequence[theo_start_index:theo_end_index]
+                    ion_formula = self.calculate_molecular_formula(ion_sequence)
+                    ion_name = f"{ion_type}{theo_start_index}-{theo_end_index} ({charge}+)"
+                    n_site1 = self.sequence[theo_start_index-1]
+                    c_site1 = self.sequence[theo_start_index]
+                    frag_site1 = n_site1 + c_site1
+                    n_site2 = self.sequence[theo_end_index-1]
+                    c_site2 = self.sequence[theo_end_index]
+                    frag_site2 = n_site2 + c_site2
+                
+                adduct = ""
+                loss = ""
+                total_adduct = ""
+                total_loss = ""
+                frag_site = ""
+                
+            elif stage == "loss":
+                ion_name = matched_peaks["original_ion_name"][i]
+                frag_site = matched_peaks["frag_site"][i]
+                frag_site1 = ""
+                frag_site2 = ""
+                ion_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
+                original_formula = self.parse_molecular_formula(
+                    matched_peaks["original_ion_formula"][i]
                 )
-                for element, count in original_adduct_formula.items():
+                adduct_formula = self.parse_molecular_formula(matched_peaks["adduct"][i])
+                loss_formula = self.parse_molecular_formula(matched_peaks["loss"][i])
+                
+                for element, count in original_formula.items():
+                    ion_formula[element] += count
+                for element, count in adduct_formula.items():
+                    ion_formula[element] += count
+                for element, count in loss_formula.items():
+                    ion_formula[element] += -1 * count
+                
+                total_adduct_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
+                if type(matched_peaks["original_ion_adduct"][i]) == str:
+                    original_adduct_formula = self.parse_molecular_formula(
+                        matched_peaks["original_ion_adduct"][i]
+                    )
+                    for element, count in original_adduct_formula.items():
+                        total_adduct_formula[element] += count
+                for element, count in adduct_formula.items():
                     total_adduct_formula[element] += count
-            for element, count in adduct_formula.items():
-                total_adduct_formula[element] += count
-            total_loss_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
-            if type(matched_peaks["original_ion_loss"][i]) == str:
-                original_loss_formula = self.parse_molecular_formula(
-                    matched_peaks["original_ion_loss"][i]
-                )
-                for element, count in original_loss_formula.items():
+                    
+                total_loss_formula = {'C': 0, 'H': 0, 'N': 0, 'O': 0, 'S': 0, 'P': 0, 'Na': 0}
+                if type(matched_peaks["original_ion_loss"][i]) == str:
+                    original_loss_formula = self.parse_molecular_formula(
+                        matched_peaks["original_ion_loss"][i]
+                    )
+                    for element, count in original_loss_formula.items():
+                        total_loss_formula[element] += count
+                for element, count in loss_formula.items():
                     total_loss_formula[element] += count
-            for element, count in loss_formula.items():
-                total_loss_formula[element] += count
-            self.adduct = self.formula_to_string(adduct_formula)
-            self.loss = self.formula_to_string(loss_formula)
-            self.total_adduct = self.formula_to_string(total_adduct_formula)
-            self.total_loss = self.formula_to_string(total_loss_formula)
+                    
+                adduct = self.formula_to_string(adduct_formula)
+                loss = self.formula_to_string(loss_formula)
+                total_adduct = self.formula_to_string(total_adduct_formula)
+                total_loss = self.formula_to_string(total_loss_formula)
+            
+            formula_string = self.formula_to_string(ion_formula)
+            mz = self.assignment_df["monoisotopic_mz"][observed_ion]
+            mw = self.assignment_df["monoisotopic_mw"][observed_ion]
+            
+            theoretical_envelope = isotopic_variants(ion_formula, charge=charge)
+            
+            x = [peak.mz for peak in theoretical_envelope]
+            y = [peak.intensity for peak in theoretical_envelope]
+            error = mz - x[0]
+            ppm_error = error / mz * 1000000
+            
+            ion_mw = min(x)
+            
+            index_to_delete = self.get_indices_below_n_percent(y, 0.002)
+            x = [mz_val for j, mz_val in enumerate(x) if j not in index_to_delete]
+            y = [intens for j, intens in enumerate(y) if j not in index_to_delete]
+            
+            calibrated_x = [j + error for j in x]
+            exp_x = []
+            exp_y = []
+            
+            for peak_mz in calibrated_x:
+                closest_index = self.find_closest_index(peak_mz, self.spectrum_x_array)
+                exp_x.append(self.spectrum_x[closest_index])
+                exp_y.append(self.spectrum_y[closest_index])
+            
+            guess = max(exp_y) / max(y)
+            
+            result = minimize(residual, guess, args=(y, exp_y))
+            
+            ratio = result.x[0]
+            y = [intens * ratio for intens in y]
+            
+            theo_y_array = np.array(y)
+            exp_y_array = np.array(exp_y)
+            
+            numerator = 0
+            denominator = 0
+            
+            for j, theo_value in enumerate(theo_y_array):
+                exp_value = exp_y_array[j]
+                if exp_value == 0:
+                    ratio1 = 0
+                else:
+                    ratio1 = theo_value / exp_value
+                ratio2 = exp_value / theo_value
+                ratio_val = min([ratio1, ratio2])
+                numerator += ratio_val * theo_value
+                denominator += theo_value
+            score = numerator / denominator
+            
+            scatter_x = x
+            scatter_y = y
+            total_intensity = sum(y)
+            charge_scaled_abundance = total_intensity / charge
+            
+            abu = max(y) * 1.2
+            selected_min_mz = min(x) - 1.5 * (x[1] - x[0])
+            selected_max_mz = max(x) + 1.5 * (x[1] - x[0])
+            
+            # Store all computed results
+            precomputed_results.append({
+                'observed_ion': observed_ion,
+                'ion_name': ion_name,
+                'frag_site': frag_site,
+                'frag_site1': frag_site1,
+                'frag_site2': frag_site2,
+                'adduct': adduct,
+                'loss': loss,
+                'total_adduct': total_adduct,
+                'total_loss': total_loss,
+                'formula_string': formula_string,
+                'ppm_error': ppm_error,
+                'score': score,
+                'mw': ion_mw,
+                'scatter_x': scatter_x,
+                'scatter_y': scatter_y,
+                'total_intensity': total_intensity,
+                'charge_scaled_abundance': charge_scaled_abundance,
+                'x': x,
+                'y': y,
+                'abu': abu,
+                'selected_min_mz': selected_min_mz,
+                'selected_max_mz': selected_max_mz,
+                'mw_for_plot': mw
+            })
+        
+        return precomputed_results
 
-        self.formula_string = self.formula_to_string(ion_formula)
 
-        mz = self.assignment_df["monoisotopic_mz"][self.observed_ion]
-        mw = self.assignment_df ["monoisotopic_mw"][self.observed_ion]
-
-        theoretical_envelope = isotopic_variants(ion_formula, charge=charge)
-        x = [peak.mz for peak in theoretical_envelope]
-        y = [peak.intensity for peak in theoretical_envelope]
-
-        error = mz - x[0]
-        self.ppm_error = error / mz * 1000000
-
-        self.mw = min(x)
-
-        index_to_delete = self.get_indices_below_n_percent(y, 0.002)
-        x = [mz for i, mz in enumerate(x) if i not in index_to_delete]
-        y = [intens for i, intens in enumerate(y) if i not in index_to_delete]
-
-        calibrated_x = [j + error for j in x]
-        exp_x = []
-        exp_y = []
-
-        for peak_mz in calibrated_x:
-            closest_index = self.find_closest_index(peak_mz, self.spectrum_x_array)
-            exp_x.append(self.spectrum_x[closest_index])
-            exp_y.append(self.spectrum_y[closest_index])
-
-        guess = max(exp_y) / max(y)
-
-        result = minimize(residual, guess, args=(y, exp_y))
-        ratio = result.x[0]
-        y = [intens * ratio for intens in y]
-
-        theo_y_array = np.array(y)
-        exp_y_array = np.array(exp_y)
-
-        numerator = 0
-        denominator = 0
-
-        for j, theo_value in enumerate(theo_y_array):
-            exp_value = exp_y_array[j]
-            if exp_value == 0:
-                ratio1 = 0
-            else:
-                ratio1 = theo_value / exp_value
-            ratio2 = exp_value / theo_value
-            ratio = min([ratio1,ratio2])
-            numerator += ratio * theo_value
-            denominator += theo_value
-        self.score = numerator / denominator
-
-
-        self.scatter_x = x
-        self.scatter_y = y
-        self.total_intensity = sum(y)
-        self.charge_scaled_abundance = self.total_intensity / charge
-
-        # mass and intensity ranges
-        abu = max(y) * 1.2
-        selected_min_mz = min(x) - 1.5 * (x[1] - x[0])
-        selected_max_mz = max(x) + 1.5 * (x[1] - x[0])
+    def iterate_over_peaks(self, i, matched_peaks, stage):
+        precomp = self.precomputed_data[i]
+        
+        self.observed_ion = precomp['observed_ion']
+        self.ion_name = precomp['ion_name']
+        self.frag_site = precomp['frag_site']
+        self.frag_site1 = precomp['frag_site1']
+        self.frag_site2 = precomp['frag_site2']
+        self.adduct = precomp['adduct']
+        self.loss = precomp['loss']
+        self.total_adduct = precomp['total_adduct']
+        self.total_loss = precomp['total_loss']
+        self.formula_string = precomp['formula_string']
+        self.ppm_error = precomp['ppm_error']
+        self.score = precomp['score']
+        self.mw = precomp['mw']
+        self.scatter_x = precomp['scatter_x']
+        self.scatter_y = precomp['scatter_y']
+        self.total_intensity = precomp['total_intensity']
+        self.charge_scaled_abundance = precomp['charge_scaled_abundance']
+        
+        x = precomp['x']
+        y = precomp['y']
+        abu = precomp['abu']
+        selected_min_mz = precomp['selected_min_mz']
+        selected_max_mz = precomp['selected_max_mz']
+        mw = precomp['mw_for_plot']
 
         peak_params = [
             self.score,
@@ -465,12 +527,10 @@ class InternalSearchValidationWindow(wx.Frame):
                 self.on_false_button(None)
                 return
             else:
-                print("!!!")
-                print(f"ATTENTION: Fragment has already been assigned as {prev_ion}")
-                print(f"Old score: {round(old_score,2)} New score: {round(new_score,2)}")
-                print(f"Old propensity score: {old_prop} New propensity score: {new_prop}")
-                print("Propensity scores closer to 0 are more likely.")
-                print("!!!")
+                warn(f"Fragment has already been assigned as {prev_ion}")
+                info(f"[yellow]Old score: {round(old_score,2)} New score: {round(new_score,2)}[/yellow]")
+                info(f"[yellow]Old propensity score: {old_prop} New propensity score: {new_prop}[/yellow]")
+                info("[yellow]Propensity scores closer to 0 are more likely.[/yellow]")
         else:
             pass
 
@@ -588,6 +648,7 @@ class InternalSearchValidationWindow(wx.Frame):
         self.stage = "loss"
         self.length_match_list = len(self.matched_envelopes)
         if len(self.matched_envelopes) >= 1:
+            self.precomputed_data = self.precompute_fits(self.matched_envelopes, self.stage)
             self.iterate_over_peaks(self.iteration, self.matched_envelopes, self.stage)
 
 
@@ -613,7 +674,7 @@ class InternalSearchValidationWindow(wx.Frame):
             )
         elif self.stage == "loss":
             self.assignment_df.loc[self.observed_ion, "frag_site"] = self.frag_site
-        print(f"Assigned {self.name} {self.ion_name} (+){self.total_adduct} (-){self.total_loss}")
+        info(f"Assigned {self.name} {self.ion_name} (+){self.total_adduct} (-){self.total_loss}")
 
         if self.iteration < len(self.matched_envelopes) - 1:
             self.iteration += 1
@@ -621,11 +682,12 @@ class InternalSearchValidationWindow(wx.Frame):
 
         elif self.iteration >= len(self.matched_envelopes) - 1:
             self.assignment_df.to_csv(self.peak_assignment_file, index=False)
-            print(f'Saved updated assigned peak list to {self.peak_assignment_file}')
+            info(f'Saved updated assigned peak list to {self.peak_assignment_file}')
             if self.length_match_list == 0:
                 self.filter_results()
+                success("Internal fragment search complete.")
                 self.Close()
-            print("Continuing with next round of neutral loss scans.")
+            info("Continuing with next round of neutral loss scans.")
             self.neutral_loss_search()
 
 
@@ -635,11 +697,12 @@ class InternalSearchValidationWindow(wx.Frame):
             self.iterate_over_peaks(self.iteration, self.matched_envelopes, self.stage)
         elif self.iteration >= len(self.matched_envelopes) - 1:
             self.assignment_df.to_csv(self.peak_assignment_file, index=False)
-            print(f'Saved updated assigned peak list to {self.peak_assignment_file}')
+            info(f'Saved updated assigned peak list to {self.peak_assignment_file}')
             if self.length_match_list == 0:
                 self.filter_results()
+                success("Internal fragment search complete.")
                 self.Close()
-            print("Continuing with next round of neutral loss scans.")
+            info("Continuing with next round of neutral loss scans.")
             self.neutral_loss_search()
 
 
@@ -667,7 +730,7 @@ class InternalSearchValidationWindow(wx.Frame):
         assignment_list.loc[mask, "fitter_theo_y"] = None
         assignment_list.loc[mask, "frag_site"] = None
         assignment_list.to_csv(self.peak_assignment_file, index=False)
-        print(f"Removed assignments with mass errors greater than {ppm_threshold} ppm.")
+        info(f"Removed assignments with mass errors greater than {ppm_threshold} ppm.")
 
 
     def gen_internal_fragments(self, sequence, start_index, n_term=True):

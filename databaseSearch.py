@@ -14,6 +14,7 @@ from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 
 from databaseSearchFunctions import DbSearchFunctions
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -242,7 +243,7 @@ class DbSearchWindow(wx.Frame):
 
     def db_search(self):
         if self.run_tracker:
-            print(
+            warn(
                 "Already completed a database search. "
                 "Please reopen the Protein ID window if you need to adjust settings."
             )
@@ -297,7 +298,7 @@ class DbSearchWindow(wx.Frame):
         )
 
         # run database search
-        print("Searching database...")
+        info("[b]Searching database...")
         observed_peaks = self.load_peaks(df = False) # load observed peaks from deconvolution
 
 
@@ -352,6 +353,7 @@ class DbSearchWindow(wx.Frame):
         self.panel.Layout()
         self.Thaw()
 
+        success("Database search complete!")
         self.run_tracker = True # db search completed
 
 

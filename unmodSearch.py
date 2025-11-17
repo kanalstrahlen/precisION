@@ -6,7 +6,7 @@ import pandas as pd
 
 from unmodSearchValidation import UnmodSearchValidationWindow
 from internalSearchValidation import InternalSearchValidationWindow
-
+from logger import info, warn, error, success
 
 
 class NoModSearchWindow(wx.Frame):
@@ -157,6 +157,7 @@ class NoModSearchWindow(wx.Frame):
 
 
     def on_terminal_match_button(self, event):
+        info("[b]Beginning terminal ion search...")
         self.generate_assignment_files()
         self.update_protein_name()
         self.terminal_matching()
@@ -167,8 +168,9 @@ class NoModSearchWindow(wx.Frame):
             self.directory_path, f"{self.basename}.assignedPeakList.csv"
         )
         if not os.path.exists(peak_assignment_file):
-            print("Terminal fragments should be assigned first.")
+            error("Terminal fragments should be assigned first.")
             return
+        info("[b]Beginning internal ion search...")
         self.update_protein_name()
         self.internal_matching()
 
@@ -245,8 +247,9 @@ class NoModSearchWindow(wx.Frame):
             prev_sequence = peak_list.loc[index, 'sequence']
             if self.sequence != prev_sequence:
                 self.name = f'{self.name}_newIsoform{random.randint(10,99)}'
-                print("Protein ID has already been used for another sequence!")
-                print(f"Updating ID to {self.name}")
+                warn("Protein ID has already been used for another sequence!"
+                    f"Updating ID to {self.name}"
+                )
 
 
     def terminal_matching(self):
@@ -274,8 +277,9 @@ class NoModSearchWindow(wx.Frame):
     def internal_matching(self):
 
         if self.ion_type_dropdown.GetValue() == "c/z•":
-            print("Internal fragments produced by ExD are not currently supported in precisION.")
-            print("Support will be added once mechanistic details are further explored.")
+            warn("Internal fragments produced by ExD are not currently supported in precisION."
+                "Support will be added once mechanistic details are further explored."
+            )
             return
 
         val_window = InternalSearchValidationWindow(

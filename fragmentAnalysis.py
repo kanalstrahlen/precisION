@@ -15,6 +15,7 @@ import wx.grid
 from Bio import PDB, pairwise2
 import textalloc as ta
 
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -26,7 +27,7 @@ class FragmentAnalysisWindow(wx.Frame):
         super().__init__(
             parent,
             title=title,
-            size=(375, 380),
+            size=(420, 380),
             style=wx.DEFAULT_FRAME_STYLE
         )
 
@@ -113,6 +114,7 @@ class FragmentAnalysisWindow(wx.Frame):
             size=(232, 20),
             style=wx.TE_READONLY | wx.TE_CENTER
         )
+        self.pdb_text.SetBackgroundColour(wx.Colour(255, 255, 255))
         pdb_button = wx.Button(self.panel, label="Browse",  size=(50, 25))
         pdb_button.Bind(wx.EVT_BUTTON, self.on_pdb_button)
 
@@ -214,7 +216,7 @@ class FragmentAnalysisWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             file_path = dlg.GetPath()
             self.pdb_text.SetValue(file_path)
-            print("Selected file:", file_path)
+            info("Selected file:", file_path)
         dlg.Destroy()
 
 
@@ -250,7 +252,7 @@ class FragmentAnalysisWindow(wx.Frame):
         if os.path.exists(pdb_file_path):
             pass
         else:
-            print("No pdb file provided.")
+            warn("No pdb file provided.")
             return
 
         structure = Structure(name, peak_list, pdb_file_path)
@@ -274,7 +276,7 @@ class FragmentAnalysisWindow(wx.Frame):
         res = self.mod_res.GetValue()
 
         if mod == "None":
-            print("No modification selected.")
+            error("No modification selected.")
             return
         mod_finder_plot = ModFinder(name, peak_list, mod, res, color)
         mod_finder_plot.gen_plot()
@@ -295,19 +297,19 @@ class FragmentAnalysisWindow(wx.Frame):
             f"{basename}.centroid.cwt.txt"
         )
         run = FragmentStatistics(self.file_path, spectrum_path, name)
-        print("")
-        print("*************************************************")
-        print("               Spectrum statistics               ")
-        print("*************************************************")
+        info("")
+        info("[b]*************************************************")
+        info("[b]               Spectrum statistics               ")
+        info("[b]*************************************************")
         run.calc_pc_peaks_assigned()
         run.calc_pc_intens_assigned()
         run.calc_pc_tic_assigned()
         run.mass_error()
         run.protein_summary()
-        print(f"\nFor {name}...")
+        info(f"[b]\nFor {name}...")
         run.pc_signal()
         run.sequence_coverage()
-        print(f"Ion type breakdown for {name}:")
+        info(f"Ion type breakdown for {name}:")
         run.ion_type_breakdown()
 
 
@@ -833,7 +835,7 @@ class Structure():
         sequence = sequence.upper()
 
         if len(sequence) > len(pdb_sequence):
-            print("ERROR. Sequence should be a subset of the structure.")
+            error("Sequence should be a subset of the structure.")
             return
 
         # perform sequence alignment
@@ -890,7 +892,7 @@ class Structure():
         output_path = pdb_file_path.replace(".pdb", ".renumbered.pdb")
         io.save(output_path)
 
-        print(f"Renumbered residues in pdb file to match sequence. Saved as {output_path}.")
+        success(f"Renumbered residues in pdb file to match sequence. Saved as {output_path}.")
 
 
     def read_pdbtext(self, pdbstring: str):
@@ -941,7 +943,7 @@ class Structure():
         io = PDB.PDBIO()
         io.set_structure(structure)
         io.save(output_path)
-        print(
+        success(
             f"Saved output as {output_path}. "
             "Please view in the molecular graphics package of your choosing and color by B-factor."
         )
@@ -1209,7 +1211,7 @@ class FragmentStatistics():
     def calc_pc_peaks_assigned(self):
         assigned_peaks = self.assignment_df.dropna(subset=['name'])
         pc_assigned = round(len(assigned_peaks) / len(self.assignment_df) * 100, 1)
-        print(
+        info(
             f"{pc_assigned}% ({len(assigned_peaks)}/{len(self.assignment_df)}) "
             "of the envelopes are assigned."
         )
@@ -1220,23 +1222,21 @@ class FragmentStatistics():
         assigned_peaks = self.assignment_df.dropna(subset=['name'])
         assigned_intens = assigned_peaks['abundance'].sum()
         pc_assigned = round(assigned_intens / decon_intens * 100, 1)
-        print(f"Approx. {pc_assigned}% of the deconvoluted signal is assigned.")
+        info(f"Approx. {pc_assigned}% of the deconvoluted signal is assigned.")
         
         if pc_assigned <= 33.33:
-            print("")
-            print(
-                "Less than a third of the deconvoluted signal has been assigned.",
-                "A low percentage of assigned signal can indicate that the assigned sequence(s) are incorrect.",
-                " Care should be taken when interpreting the resulting data.",
-                "However, it may also indicate the presence of other biomolecules",
-                " and/or their fragments in the spectrum that have been left unassigned.",
-                "To check this, examine the spectrum using Fragment Assignment -> Show Spectrum",
-                " to identify prominent unassigned peaks.",
-                "If these peaks cannot be reliably assigned to protein fragments ",
-                "(i.e., they do not correspond to other unassigned proteins or modified sequence ions), ",
-                "they may be identified using MS3 measurements along with de novo peptide sequencing ",
-                "or metabolite annotation tools such as SIRIUS.")
-            print("")
+            warn(
+                "Less than a third of the deconvoluted signal has been assigned."
+                "A low percentage of assigned signal can indicate that the assigned sequence(s) are incorrect."
+                " Care should be taken when interpreting the resulting data."
+                " However, it may also indicate the presence of other biomolecules"
+                " and/or their fragments in the spectrum that have been left unassigned."
+                " To check this, examine the spectrum using Fragment Assignment -> Show Spectrum"
+                " to identify prominent unassigned peaks."
+                " If these peaks cannot be reliably assigned to protein fragments "
+                " (i.e., they do not correspond to other unassigned proteins or modified sequence ions), "
+                " they may be identified using MS3 measurements along with de novo peptide sequencing "
+                " or metabolite annotation tools such as SIRIUS.")
 
 
     def calc_pc_tic_assigned(self):
@@ -1247,19 +1247,19 @@ class FragmentStatistics():
         total_assigned_intens = assigned_peaks['total_intensity'].sum()
 
         pc_assigned = round(total_assigned_intens / tic * 100, 1)
-        print(f"{pc_assigned}% of the total ion current is assigned.")
+        info(f"{pc_assigned}% of the total ion current is assigned.")
 
 
     def mass_error(self):
         assigned_peaks = self.assignment_df.dropna(subset=['name'])
         max_error = round(assigned_peaks['ppm_error'].abs().max(), 2)
-        print(f"Maximum mass error = {max_error} ppm")
+        info(f"Maximum mass error = {max_error} ppm")
 
 
     def protein_summary(self):
         protein_df = self.assignment_df.dropna(subset=['name'])
         protein_names = protein_df["name"].unique()
-        print(f"{len(protein_names)} protein/s identified.")
+        info(f"{len(protein_names)} protein/s identified.")
 
 
     def sequence_coverage(self):
@@ -1289,7 +1289,7 @@ class FragmentStatistics():
         potential_hits = len(binary_list)
         coverage = round(num_hits / potential_hits * 100, 1)
 
-        print(f"Sequence coverage = {coverage}%")
+        info(f"Sequence coverage = {coverage}%")
 
 
     def pc_signal(self):
@@ -1299,7 +1299,7 @@ class FragmentStatistics():
         total_assigned_intens = assigned_peaks['total_intensity'].sum()
         total_protein_intens = protein_peaks['total_intensity'].sum()
         pc_protein = round(total_protein_intens / total_assigned_intens * 100, 1)
-        print(f"{pc_protein}% of the total assigned signal corresponds with {self.name}.")
+        info(f"{pc_protein}% of the total assigned signal corresponds with {self.name}.")
 
 
     def ion_type_breakdown(self):
@@ -1313,37 +1313,37 @@ class FragmentStatistics():
         }
 
         for ion_type, count in ion_counts.items():
-            print(f"{count} {ion_type}-type ions.")
+            info(f"{count} {ion_type}-type ions.")
     
         b_ion_count = ion_counts['b']
         y_ion_count = ion_counts['y']
         i_ion_count = ion_counts['I']
 
         if b_ion_count <= 5:
-            print("\nLess than 5 b-type ions have been assigned. This may be due to:")
-            print("1) Incorrect N-terminal sequence, modification state, or N-terminus.")
-            print("2) An uneven charge distribution.")
-            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+            warn("Less than 5 b-type ions have been assigned. This may be due to:")
+            info("[yellow] 1) Incorrect N-terminal sequence, modification state, or N-terminus.[/yellow]")
+            info("[yellow] 2) An uneven charge distribution.[/yellow]")
+            info("[yellow] To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.[/yellow]")
         if y_ion_count <= 5:
-            print("\nLess than 5 y-type ions have been assigned. This may be due to:")
-            print("1) Incorrect C-terminal sequence, modification state, or C-terminus.")
-            print("2) An uneven charge distribution.")
-            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+            warn("Less than 5 y-type ions have been assigned. This may be due to:")
+            info("[yellow] 1) Incorrect C-terminal sequence, modification state, or C-terminus.[/yellow]")
+            info("[yellow] 2) An uneven charge distribution.[/yellow]")
+            info("[yellow] To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.[/yellow]")
 
         if b_ion_count >= 3 * y_ion_count and y_ion_count > 5:
-            print("\nb-type ions significantly outnumber y-type ions. This may be due to:")
-            print("1) Incorrect C-terminal sequence, modification state, or C-terminus.")
-            print("2) An uneven charge distribution.")
-            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+            warn("b-type ions significantly outnumber y-type ions. This may be due to:")
+            info("[yellow] 1) Incorrect C-terminal sequence, modification state, or C-terminus.[/yellow]")
+            info("[yellow] 2) An uneven charge distribution.[/yellow]")
+            info("[yellow] To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.[/yellow]")
         elif y_ion_count >= 3 * b_ion_count and b_ion_count > 5:
-            print("\ny-type ions significantly outnumber b-type ions. This may be due to:")
-            print("1) Incorrect N-terminal sequence, modification state, or N-terminus.")
-            print("2) An uneven charge distribution.")
-            print("To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.")
+            warn("y-type ions significantly outnumber b-type ions. This may be due to:")
+            info("[yellow] 1) Incorrect N-terminal sequence, modification state, or N-terminus.[/yellow]")
+            info("[yellow] 2) An uneven charge distribution.[/yellow]")
+            info("[yellow] To check the distribution of charges along the protein, use the Fragment Analysis -> Intensity Histogram plot.[/yellow]")
 
         if i_ion_count >= 2 * (b_ion_count + y_ion_count):
-            print("\nA very large number of internal fragments have been assigned.")
-            print("This may indicate the collision energy is too high to observe labile modifications.")
+            warn("A very large number of internal fragments have been assigned.")
+            info("[yellow] This may indicate the collision energy is too high to observe labile modifications.[/yellow]")
 
 
 
@@ -1369,7 +1369,7 @@ class AnnotatedSpectrum():
         spectrum_y = np.array(spectrum[:, 1])
         spectrum_y = spectrum_y / max(spectrum_y) * 100
 
-        print("Creating plot...")
+        info("Creating plot...")
         fig, ax = plt.subplots(
             1, 1,
             num=f"precisION - Annotated Spectrum [{name}]",
@@ -1428,7 +1428,7 @@ class AnnotatedSpectrum():
                 label_x.append(min(x_plot))
                 label_y.append(max(y_plot))
 
-        print("Optimising annotation placement...")
+        info("Optimising annotation placement...")
         ta.allocate_text(fig, ax, label_x, label_y,
             labels,
             avoid_label_lines_overlap=True,

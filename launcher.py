@@ -10,6 +10,7 @@ from identification import ProteinIDWindow
 from fragmentAnnotator import FragmentAnnotatorWindow
 from fragmentAnalysis import FragmentAnalysisWindow
 from proteoformAnalysis import ProteoformAnalysisWindow
+from logger import info, warn, error, success
 
 matplotlib.rcParams['font.sans-serif'] = "Arial"
 matplotlib.rcParams['font.family'] = "sans-serif"
@@ -27,9 +28,9 @@ class LauncherWindow(wx.Frame):
             style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
         )
 
-        print("precisION v.0.3.0")
-        print("If you use this software, please cite:")
-        print("Bennett, J.L. et al. Uncovering hidden protein modifications with native top-down mass spectrometry. Nat Methods (2025).")
+        info("[bold]precisION v.0.3.0")
+        info("If you use this software, please cite:")
+        info("Bennett, J.L. et al. [i]Uncovering hidden protein modifications with native top-down mass spectrometry.[/i] Nat Methods (2025).\n")
 
         panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -180,6 +181,7 @@ class LauncherWindow(wx.Frame):
             style=wx.TE_READONLY | wx.TE_CENTER
         )
         self.selected_file_text.SetMinSize((540, -1))
+        self.selected_file_text.SetBackgroundColour(wx.Colour(255, 255, 255))
 
         file_input_sizer.Add(file_button, 0, wx.ALIGN_LEFT | wx.RIGHT, 5)
         file_input_sizer.Add(self.selected_file_text, 0)
@@ -194,6 +196,7 @@ class LauncherWindow(wx.Frame):
             style=wx.TE_READONLY | wx.TE_CENTER
         )
         self.selected_dir_text.SetMinSize((540, -1))
+        self.selected_dir_text.SetBackgroundColour(wx.Colour(255, 255, 255))
 
         dir_input_sizer.Add(dir_button, 0, wx.ALIGN_LEFT | wx.RIGHT, 5)
         dir_input_sizer.Add(self.selected_dir_text, 0)
@@ -227,7 +230,7 @@ class LauncherWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             file_path = dlg.GetPath()
             self.selected_file_text.SetValue(file_path)
-            print("Selected file:", file_path)
+            info(f"Selected file: {file_path}")
 
             # Create a folder for the processed files
             directory_path = os.path.dirname(file_path)
@@ -239,9 +242,9 @@ class LauncherWindow(wx.Frame):
 
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
-                print("Created folder:", folder_path)
+                info(f"Created folder: {folder_path}")
             self.selected_dir_text.SetValue(folder_path)
-            print("Selected directory:", folder_path)
+            info(f"Selected directory: {folder_path}")
         dlg.Destroy()
 
 
@@ -250,7 +253,7 @@ class LauncherWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             directory_path = dlg.GetPath()
             self.selected_dir_text.SetValue(directory_path)
-            print("Selected directory:", directory_path)
+            info(f"Selected directory: {folder_path}")
         dlg.Destroy()
 
 
@@ -258,14 +261,16 @@ class LauncherWindow(wx.Frame):
         dlg = wx.DirDialog(self, "Choose a directory")
         if dlg.ShowModal() == wx.ID_OK:
             directory_path = dlg.GetPath()
-            print("Selected directory:", directory_path)
+            info(f"[b]Selected directory: {directory_path}")
+            decon_settings_window = DeconvolutionWindow(
+                self,
+                "precisION - Spectral Deconvolution",
+                directory_path
+            )
+            decon_settings_window.Show()
+        else:
+            warn("Deconvolution canceled - no directory selected.")
         dlg.Destroy()
-        decon_settings_window = DeconvolutionWindow(
-            self,
-            "precisION - Spectral Deconvolution",
-            directory_path
-        )
-        decon_settings_window.Show()
 
 
     def on_processing_button(self, event):
@@ -283,7 +288,7 @@ class LauncherWindow(wx.Frame):
             )
             processing_button_window.Show()
         except:
-            print((
+            error((
                 "Could not open file. "
                 "Inputs should be tab-delimited .txt files "
                 "containing the m/z and intensity. "
@@ -298,7 +303,7 @@ class LauncherWindow(wx.Frame):
 
         _, file_extension = os.path.splitext(file_path)
         if file_extension.lower() != ".txt":
-            print((
+            error((
                 "Could not open file. "
                 "Inputs should be tab-delimited .txt files "
                 "containing the m/z and intensity. "
@@ -311,9 +316,9 @@ class LauncherWindow(wx.Frame):
         filtered_peaklist_path = os.path.join(directory_path, filtered_peaklist_name)
         
         if os.path.exists(filtered_peaklist_path):
-            print(f"Using {filtered_peaklist_path} as peak list for searching.")
+            info(f"Using {filtered_peaklist_path} as peak list for searching.")
         else:
-            print("Peak lists must be filtered using the envelope filtering module.")
+            error("Peak lists must be filtered using the envelope filtering module.")
             return
 
         identification_button_window = ProteinIDWindow(
@@ -330,7 +335,7 @@ class LauncherWindow(wx.Frame):
         directory_path = self.selected_dir_text.GetValue()
         _, file_extension = os.path.splitext(file_path)
         if file_extension.lower() != ".txt":
-            print((
+            error((
                 "Could not open file. "
                 "Inputs should be tab-delimited .txt files "
                 "containing the m/z and intensity. "
@@ -343,9 +348,9 @@ class LauncherWindow(wx.Frame):
         filtered_peaklist_path = os.path.join(directory_path, filtered_peaklist_name)
 
         if os.path.exists(filtered_peaklist_path):
-            print(f"Using {filtered_peaklist_path} as peak list for assignment.")
+            info(f"Using {filtered_peaklist_path} as peak list for assignment.")
         else:
-            print("Peak lists must be filtered using the envelope filtering module.")
+            info("Peak lists must be filtered using the envelope filtering module.")
             return
 
         assignment_button_window = FragmentAnnotatorWindow(
@@ -373,7 +378,7 @@ class LauncherWindow(wx.Frame):
             )
             analysis_button_window.Show()
         else:
-            print("The assigned peak list file is not present.")
+            error("The assigned peak list file is not present.")
 
 
     def on_proteoform_analysis_button(self, event):
@@ -388,7 +393,7 @@ class LauncherWindow(wx.Frame):
                 directory_path
             )
         else:
-            print((
+            error((
                 "Could not open file. "
                 "The accepted input is a .txt file containing the m/z (x) and intensity (y)."
                 )

@@ -1,6 +1,7 @@
 import pandas as pd
 import wx
 
+from logger import info, warn, error, success
 
 class FilterAssignmentsWindow(wx.Frame):
     def __init__(self, parent, title, assignment_file):
@@ -159,7 +160,7 @@ class FilterAssignmentsWindow(wx.Frame):
         assignment_list.loc[mask, "fitter_theo_y"] = None
         assignment_list.loc[mask, "frag_site"] = None
         assignment_list.to_csv(self.assignment_file, index=False)
-        print(f"Removed assignments with mass errors greater than {ppm_threshold} ppm.")
+        info(f"[b]Removed assignments with mass errors greater than {ppm_threshold} ppm.")
 
 
     def on_fit_button(self, event):
@@ -186,7 +187,7 @@ class FilterAssignmentsWindow(wx.Frame):
         assignment_list.loc[mask, "fitter_theo_y"] = None
         assignment_list.loc[mask, "frag_site"] = None
         assignment_list.to_csv(self.assignment_file, index=False)
-        print(f"Removed assignments with fitting scores less than {fit_threshold}.")
+        info(f"[b]Removed assignments with fitting scores less than {fit_threshold}.")
 
 
     def on_set_button(self, event):
@@ -242,4 +243,4 @@ class FilterAssignmentsWindow(wx.Frame):
         assignment_list.loc[df_type.index, "frag_site"] = None
 
         assignment_list.to_csv(self.assignment_file, index=False)
-        print("Removed selected set of ions.")
+        info("[b]Removed selected set of ions.")

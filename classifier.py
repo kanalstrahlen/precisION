@@ -7,6 +7,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import make_scorer, recall_score, confusion_matrix, classification_report
 from joblib import parallel_backend
+
+from logger import info, warn, error, success
+
 # to do further optimise features to choose.
 
 class PeakListClassifier():
@@ -135,16 +138,16 @@ class PeakListClassifier():
 
     def evaluate_model(self, model, x_test, y_test):
         y_pred = model.predict(x_test)
-        print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
-        print("\nClassification Report:\n", classification_report(y_test, y_pred))
+        info(f"Confusion Matrix:\n{confusion_matrix(y_test, y_pred)}")
+        info(f"\nClassification Report:\n{classification_report(y_test, y_pred)}")
         accuracy = model.score(x_test, y_test)
-        print("\nTest Set Accuracy:\n", accuracy)
+        info(f"\nTest Set Accuracy:\n {accuracy}")
 
 
     def print_logistic_regression_coefficients(self, model, features):
         coefficients = model.coef_[0]
         for feature, coefficient in zip(features, coefficients):
-            print(f"{feature}: {coefficient}")
+            info(f"{feature}: {coefficient}")
 
 
     def voting(self, logistic_model, gradient_boosting_model, x):
@@ -166,16 +169,18 @@ class PeakListClassifier():
         combined_predictions = self.voting(logistic_model, gradient_boosting_model, x_test)
 
         # evaluate the combined predictions
-        print("\nModel Evaluation:")
-        print("\nClassification Report:\n", classification_report(y_test, combined_predictions))
+        info("[b]Model Evaluation:")
+        info(f"Classification Report:\n {classification_report(y_test, combined_predictions)}")
         tp = confusion_matrix(y_test, combined_predictions)[1][1]
         fn = confusion_matrix(y_test, combined_predictions)[1][0]
 
         recall = tp / (tp + fn)
 
         if recall <= 0.85:
-            print("!WARNING!")
-            print(f"Recall ({recall}) is less than 0.85")
-            print("A signficant number of real peaks may be filtered from the data!")
-            print("Please reattempt classification or use manual filtering if this is an issue")
-            print("!WARNING!")
+            warn(
+                f"Recall ({recall:.3f}) is less than 0.85\n"
+                "A significant number of real peaks may be filtered from the data!\n"
+                "Please reattempt classification or use manual filtering if this is an issue\n"
+            )
+        else:
+            success("Classification complete!")

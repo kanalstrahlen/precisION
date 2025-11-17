@@ -16,6 +16,7 @@ import matplotlib.cm
 from matplotlib.ticker import FuncFormatter
 
 from proteoformAnalysisFunctions import ProteoformAnalysisRun
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -239,7 +240,7 @@ class ProteoformAnalysisWindow(wx.Frame):
             self.load_empty_spectrum(file_path, directory_path)
             no_spec = False
         except:
-            print("The spectrum must be analysed using the deconvolution module first.")
+            error("The spectrum must be analysed using the deconvolution module first.")
             no_spec = True
             return
 
@@ -277,11 +278,11 @@ class ProteoformAnalysisWindow(wx.Frame):
         if not os.path.exists(save_path):
             rl_file_path = os.path.join(directory_path, f"{self.basename}.profile.rl.txt")
             if os.path.exists(rl_file_path):
-                print('Loading spectrum...')
+                info('Loading spectrum...')
                 output = np.loadtxt(rl_file_path)
                 output = output[::2]
                 np.savetxt(save_path, output, delimiter=" ")
-                print(
+                info(
                     f"Created {save_path} using RL spectrum. "
                     f"Please delete {self.basename}.profile.rl.txt and {self.basename}.spectrum.txt"
                     " and open the module again if you want to use the raw spectrum."
@@ -315,7 +316,7 @@ class ProteoformAnalysisWindow(wx.Frame):
             self.gen_sequence_map(name, sequence, ions)
 
         else:
-            print("Please select a specific proteoform.")
+            error("Please select a specific proteoform.")
             return
 
 
@@ -468,7 +469,7 @@ class ProteoformAnalysisWindow(wx.Frame):
         df1 = df1.drop(columns=['min_envelope', 'max_envelope', 'max_abu'])
         df1.to_csv(save_path, index=False)
 
-        print(f'Saved combined results to {save_path}')
+        info(f'Saved combined results to {save_path}')
 
 
     def on_search_button(self, event):
@@ -714,7 +715,7 @@ class ProteoformAnalysisWindow(wx.Frame):
         with open(output_path, "wb") as f:
             pickle.dump(state_dict, f)
 
-        print("Saved current progress.")
+        success("Saved current progress.")
 
 
 

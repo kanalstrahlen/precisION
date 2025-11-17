@@ -15,6 +15,8 @@ from scipy.stats import poisson
 import matplotlib.pyplot as plt
 from fastOffsetSearch import FastOffsetShiftCalculator
 
+from logger import info, warn, error, success
+
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -126,9 +128,9 @@ class OffsetSearchWindow(wx.Frame):
         theo_b_ions, theo_y_ions = calculator.gen_theo_fragment_masses(sequence)
         peak_list = calculator.gen_peak_list(file_path)
 
-        print("Searching b-type ions...")
+        info("Searching b-type ions...")
         b_ion_offset, b_ion_num_matches = calculator.offset_scan(peak_list, theo_b_ions)
-        print("Searching y-type ions...")
+        info("Searching y-type ions...")
         y_ion_offset, y_ion_num_matches = calculator.offset_scan(peak_list, theo_y_ions)
 
         #with open('test1.csv', 'w') as f:
@@ -238,7 +240,7 @@ class OffsetSearchWindow(wx.Frame):
         self.y_ion_grid.Refresh()
         self.y_ion_grid.Show()
 
-        print("Transformed mass values in table to c/z•-type ions")
+        success("Transformed mass values in table to c/z•-type ions")
 
 
 

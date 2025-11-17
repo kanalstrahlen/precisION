@@ -4,7 +4,7 @@ import wx.grid
 
 from denovo import DenovoWindow
 from databaseSearch import DbSearchWindow
-
+from logger import info, warn, error, success
 
 class ProteinIDWindow(wx.Frame):
     def __init__(self, parent, title, file_path, directory_path):
@@ -69,6 +69,7 @@ class ProteinIDWindow(wx.Frame):
         db_file_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.selected_file_text = wx.TextCtrl(self.panel, style=wx.TE_READONLY | wx.TE_CENTER)
         self.selected_file_text.SetMinSize((290, -1))
+        self.selected_file_text.SetBackgroundColour(wx.Colour(255, 255, 255))
         file_button = wx.Button(self.panel, label="Browse")
         file_button.Bind(wx.EVT_BUTTON, self.on_file_button)
 
@@ -105,14 +106,14 @@ class ProteinIDWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             file_path = dlg.GetPath()
             self.selected_file_text.SetValue(file_path)
-            print("Selected file:", file_path)
+            info(f"Selected file: {file_path}")
         dlg.Destroy()
 
 
     def on_denovo_button(self, event):
         db_file = self.selected_file_text.GetValue()
         if db_file == "":
-            print("No database file selected!")
+            error("No database file selected!")
             return
         denovo_button_window = DenovoWindow(
             self,
@@ -127,7 +128,7 @@ class ProteinIDWindow(wx.Frame):
     def on_db_button(self, event):
         db_file = self.selected_file_text.GetValue()
         if db_file == "":
-            print("No database file selected!")
+            error("No database file selected!")
             return
         denovo_button_window = DbSearchWindow(
             self,

@@ -4,6 +4,7 @@ import subprocess
 import wx
 import pandas as pd
 from peakProperties import PeakProperties
+from logger import info, warn, error, success
 
 
 class Cluster:
@@ -200,7 +201,7 @@ class Thrash():
             fits = ["0.4"]
 
         for max_score in fits:
-            print(f"Running THRASH deconvolution algorithim with a maximum score of {max_score}")
+            info(f"Running THRASH deconvolution algorithim with a maximum score of {max_score}")
             self.create_thrash_param_file(
                 signal_to_noise,
                 peak_background_ratio,
@@ -270,7 +271,7 @@ class TopFD():
         self.decon_params = decon_params
         self.basename = os.path.basename(self.file_path).replace("_centroid.mzML", "")
 
-        print("Running TopFD deconvolution algorithim with Ms-Deconv and EnvCNN scores.")
+        info("Running TopFD deconvolution algorithim with Ms-Deconv and EnvCNN scores.")
 
         for algo in ["msdeconv", "envcnn"]:
             self.topfd(algo)

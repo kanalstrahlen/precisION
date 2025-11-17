@@ -8,6 +8,7 @@ import pandas as pd
 from peakProperties import PeakProperties
 from peakPicking import RLPeakPicking, CWTPeakPicking
 from decon import Thrash, TopFD, Cluster
+from logger import info, warn, error, success
 
 class DeconvolutionWindow(wx.Frame):
     def __init__(self, parent, title, directory_path):
@@ -204,7 +205,7 @@ class DeconvolutionWindow(wx.Frame):
         cluster_s2n = self.cluster_s2n_input.GetValue()
         html_file = self.html_checkbox.GetValue()
 
-        print("Deconvolution can take some time. Please be patient.")
+        info("[b]Deconvolution can take some time. Please be patient.")
 
         # loop over each file in the directory and run deconvolutions and clustering
         all_files = os.listdir(self.directory_path)
@@ -213,16 +214,25 @@ class DeconvolutionWindow(wx.Frame):
         for i, file in enumerate(txt_files):
             file_path = os.path.join(self.directory_path, file)
             file_name = os.path.basename(file)
+
+            path_without_ext = os.path.splitext(file_path)[0]
+            if "." in path_without_ext:
+                warn(
+                   f"Skipping file '{file_name}' \n"
+                   f"The full path '{file_path}' contains a period ('.'). "
+                   "TopFD cannot handle paths with periods. Please change directories or files."
+                   )
+                continue
             folder_path = os.path.join(
                 self.directory_path,
                 f"{os.path.splitext(file_name)[0]}_precisION_files"
             )
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
-                print("Created folder:", folder_path)
+                info(f"Created folder: {folder_path}")
 
             if mode == 'Extensive':
-                print(f"Deconvolving {file} using extensive settings")
+                info(f"[b]Deconvolving {file} using extensive settings")
                 file_base = os.path.basename(file_path).replace(".txt", "")
                 cwt_file = os.path.join(folder_path, f"{file_base}.centroid.cwt.txt")
                 rl_file = os.path.join(folder_path, f"{file_base}.centroid.rl.txt")
@@ -231,9 +241,9 @@ class DeconvolutionWindow(wx.Frame):
                 centoid_txt = os.path.join(folder_path, f"{file_base}_centroid.txt")
 
                 if all(os.path.exists(file) for file in (cwt_file, rl_file, convolved_file)):
-                    print('Peak picking already complete. Rerunning deconvolution.')
+                    info('Peak picking already complete. Rerunning deconvolution.')
                 else:
-                    print('Picking peaks using RL deconvolution.')
+                    info('Picking peaks using RL deconvolution.')
                     RLPeakPicking(file_path, folder_path, html_file)
 
                 Thrash(convolved_file, folder_path, thrash_decon_params, file_base, True)
@@ -241,19 +251,19 @@ class DeconvolutionWindow(wx.Frame):
                 Cluster(file_path, folder_path, cluster_ppm)
                 PeakProperties(file_path, folder_path, cluster_s2n)
                 shutil.copy(rl_file, centoid_txt)
-                print(f"\n{i+1}/{len(txt_files)} spectra completed.\n")
+                info(f"[b]\n{i+1}/{len(txt_files)} spectra completed.\n")
 
             elif mode == "Rapid":
-                print(f"Deconvolving {file} using rapid settings")
+                info(f"[b]Deconvolving {file} using rapid settings")
                 file_base = os.path.basename(file_path).replace(".txt", "")
                 cwt_file = os.path.join(folder_path, f"{file_base}.centroid.cwt.txt")
                 centroid_mzml = os.path.join(folder_path, f"{file_base}_centroid.mzML")
                 centoid_txt = os.path.join(folder_path, f"{file_base}_centroid.txt")
 
                 if os.path.exists(cwt_file):
-                    print('Peak picking already complete. Rerunning deconvolution.')
+                    info('Peak picking already complete. Rerunning deconvolution.')
                 else:
-                    print('Picking peaks using CWT.')
+                    info('Picking peaks using CWT.')
                     CWTPeakPicking(file_path, folder_path, html_file)
 
                 Thrash(file_path, folder_path, thrash_decon_params, file_base, False)
@@ -261,9 +271,9 @@ class DeconvolutionWindow(wx.Frame):
                 Cluster(file_path, folder_path, cluster_ppm)
                 PeakProperties(file_path, folder_path, cluster_s2n)
                 shutil.copy(cwt_file, centoid_txt)
-                print(f"\n{i+1}/{len(txt_files)} spectra completed.\n")
+                info(f"[b]\n{i+1}/{len(txt_files)} spectra completed.\n")
 
-        print("Deconvolution complete. You can now load the clustered results.")
+        success("[b]Deconvolution complete. You can now load the clustered results.")
         wx.CallAfter(self.Close)
 
 

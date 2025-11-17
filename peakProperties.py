@@ -5,6 +5,8 @@ from brainpy import isotopic_variants
 from scipy.optimize import minimize
 from scipy.stats import pearsonr, chisquare
 
+from logger import info, warn, error, success
+
 class PeakProperties:
     def __init__(
         self,
@@ -24,7 +26,7 @@ class PeakProperties:
             )
         self.output = os.path.join(self.directory_path, f"{self.basename}.fullPeakList.csv")
 
-        print("Calculating envelope properties...")
+        info("[b]Calculating envelope properties...")
         self.calculate_prop(self.input_cluster_csv, self.input_centroid, float(s2n_threshold))
 
 

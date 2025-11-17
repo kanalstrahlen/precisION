@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 # precisION modules
 from validation import ValidationWindow
 from manualFiltering import FilterWindow
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -114,12 +115,12 @@ class ProcessingWindow(wx.Frame):
         if not os.path.exists(save_path):
             rl_file_path = os.path.join(directory_path, f"{self.basename}.profile.rl.txt")
             if os.path.exists(rl_file_path):
-                print('Loading spectrum...')
+                info('Loading spectrum...')
                 output = np.loadtxt(rl_file_path)
                 output = output[::2]
                 save_path = os.path.join(directory_path, f"{self.basename}.spectrum.txt")
                 np.savetxt(save_path, output, delimiter=" ")
-                print(
+                info(
                     f"Created {save_path} using RL spectrum. "
                     f"Please delete {self.basename}.profile.rl.txt and {self.basename}.spectrum.txt"
                     " and open the module again if you want to use the raw spectrum."
@@ -162,19 +163,19 @@ class ProcessingWindow(wx.Frame):
             )
             filter_window.Show()
         except FileNotFoundError:
-            print("No deconvolution file is present in the working directory!")
+            warn("No deconvolution file is present in the working directory!")
 
 
     def on_existing_classifier_button(self, event):
         dlg = wx.FileDialog(self, "Choose a .pk1 file for logistic regression")
         if dlg.ShowModal() == wx.ID_OK:
             lr_path = dlg.GetPath()
-            print("Selected file:", lr_path)
+            info(f"Selected file: {lr_path}")
         dlg.Destroy()
         dlg = wx.FileDialog(self, "Choose a .pk1 file for gradient boosting classification")
         if dlg.ShowModal() == wx.ID_OK:
             gb_path = dlg.GetPath()
-            print("Selected file:", gb_path)
+            info(f"Selected file: {gb_path}")
         dlg.Destroy()
         self.classify_from_model(lr_path, gb_path)
 
@@ -221,7 +222,7 @@ class ProcessingWindow(wx.Frame):
         combined_data["prediction"] = self.voting(lr_model, gb_model, x_combined_scaled)
 
         combined_data.to_csv(output_file, index=False)
-        print(f"Saved filtered peak list to {output_file}")
+        success(f"Saved filtered peak list to {output_file}")
 
 
     def voting(self, logistic_model, gradient_boosting_model, x):
@@ -310,7 +311,7 @@ class ProcessingWindow(wx.Frame):
             event.Skip()
 
         except FileNotFoundError:
-            print(
+            warn(
                 f"No {'filtered ' if validated else ''}"
                 "deconvolution file is present in the working directory!"
             )
@@ -394,7 +395,7 @@ class ProcessingWindow(wx.Frame):
             )
             val_window.Show()
         except FileNotFoundError:
-            print("No deconvolution file is present in the working directory!")
+            warn("No deconvolution file is present in the working directory!")
 
 
 

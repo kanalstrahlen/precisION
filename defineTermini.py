@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import re
 
+from logger import info, error, warn, success
 
 class DefineTerminiWindow(wx.Frame):
     def __init__(self, parent, title, sequence, file_path, directory_path):
@@ -201,6 +202,7 @@ class DefineTerminiWindow(wx.Frame):
 
 class DefineTerminiFunctions():
     def truncation_scan(self, sequence, n_mods, c_mods, observed_peaks, ppm_error, ion_type):
+        info("[b]Running termini identification...")
         sequence = self.process_sequence_string(sequence)
 
         n_mod_count = len([mod for mod in n_mods if mod[0] != ""])

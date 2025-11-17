@@ -18,6 +18,7 @@ from unmodSearch import NoModSearchWindow
 from modSearch import ModSearchWindow
 from modDiscovery import ModDiscoveryWindow
 from filterAssignments import FilterAssignmentsWindow
+from logger import info, warn, error, success
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -180,13 +181,16 @@ class FragmentAnnotatorWindow(wx.Frame):
 
 
     def on_show_spectrum_button(self, event):
-        self.plot_window = FragmentAnnotatorSpectrumWindow(
-            None,
-            f"precisION - Fragment Matching [{os.path.basename(self.file_path)}]",
-            self.file_path,
-            self.directory_path
-        )
-        self.plot_window.Show()
+        try:
+            self.plot_window = FragmentAnnotatorSpectrumWindow(
+                None,
+                f"precisION - Fragment Matching [{os.path.basename(self.file_path)}]",
+                self.file_path,
+                self.directory_path
+            )
+            self.plot_window.Show()
+        except:
+            error("Assigned peak list is not present in the working directory!")
 
 
     def on_load_uniprot_button(self, event):
@@ -204,9 +208,9 @@ class FragmentAnnotatorWindow(wx.Frame):
             xml_data = response.text
             with open(save_path, "w") as xml_file:
                 xml_file.write(xml_data)
-            print(f"Data downloaded and saved as {save_path}.")
+            info(f"Data downloaded and saved as {save_path}.")
         else:
-            print(f"Failed to retrieve data. Status code: {response.status_code}")
+            error(f"Failed to retrieve data. Status code: {response.status_code}")
             return
 
         sequence = AnnotatorFunctions.extract_protein_sequence_from_xml(save_path)
@@ -216,7 +220,7 @@ class FragmentAnnotatorWindow(wx.Frame):
     def on_define_termini_button(self, event):
         seq = self.sequence_text.GetValue()
         if len(seq) <= 1:
-            print("No sequence input.")
+            error("No sequence input.")
             return
 
         define_termini_window = DefineTerminiWindow(
@@ -232,12 +236,12 @@ class FragmentAnnotatorWindow(wx.Frame):
     def on_no_mod_search_button(self, event):
         seq = self.sequence_text.GetValue()
         if len(seq) == 0:
-            print("No sequence input.")
+            error("No sequence input.")
             return
         name = self.id_text.GetValue()
         if len(name) == 0:
-            print("No protein ID provided.")
-            return    
+            error("No protein ID provided.")
+            return
         no_mod_search_window = NoModSearchWindow(
             self,
             f"precisION - Unmodified Ion Search [{os.path.basename(self.file_path)}]",
@@ -256,7 +260,7 @@ class FragmentAnnotatorWindow(wx.Frame):
     def on_mod_discovery_button(self, event):
         seq = self.sequence_text.GetValue()
         if len(seq) <= 1:
-            print("No sequence input.")
+            error("No sequence input.")
             return
 
         assigned_peaks_file = (
@@ -283,7 +287,7 @@ class FragmentAnnotatorWindow(wx.Frame):
             )
             mod_discovery_window.Show()
         else:
-            print(
+            error(
                 "The annotated peak list is not present in the working directory. "
                 "Please complete the unmodified ion search."
             )
@@ -292,12 +296,12 @@ class FragmentAnnotatorWindow(wx.Frame):
     def on_variable_search_button(self, event):
         seq = self.sequence_text.GetValue()
         if len(seq) == 0:
-            print("No sequence input.")
+            error("No sequence input.")
             return
         name = self.id_text.GetValue()
         if len(name) == 0:
-            print("No protein ID provided.")
-            return    
+            error("No protein ID provided.")
+            return
         mod_search_window = ModSearchWindow(
             self,
             f"precisION - Modified Ion Search [{os.path.basename(self.file_path)}]",
@@ -330,7 +334,7 @@ class FragmentAnnotatorWindow(wx.Frame):
                 cal_file_path
             )
         else:
-            print(
+            error(
                 "The annotated peak list or calibration file is not present in the working directory. "
                 "Please complete the unmodified ion search."
             )
@@ -349,7 +353,7 @@ class FragmentAnnotatorWindow(wx.Frame):
                 annotated_peaks_path
             )
         else:
-            print(
+            error(
                 "The annotated peak list is not present in the working directory. "
                 "Please complete the unmodified ion search."
             )

@@ -7,8 +7,9 @@ from pyteomics import mass
 from brainpy import isotopic_variants
 import h5py
 from tqdm import tqdm
-from fastDatabaseSearchFunctions import FastDbSearchFunctions
 
+from fastDatabaseSearchFunctions import FastDbSearchFunctions
+from logger import info, warn, error, success
 
 # to change; change to index search with nested B tree
 
@@ -17,11 +18,12 @@ class DbSearchFunctions():
         self, h5_file_path, database_file,
         min_mw, max_mw, ion_type, disulfide
     ):
+        info("[b]Generating/loading proteoform file...")
         # if h5 proteoform file already exists, use already created file
         if os.path.exists(h5_file_path):
-            print(f"Using {h5_file_path} as proteoform file.")
+            info(f"Using {h5_file_path} as proteoform file.")
         else:
-            print("Generating proteoform file. Please be patient.")
+            info("Generating proteoform file. Please be patient.")
 
             # read in all key proteoforms from xml file
             (
@@ -542,11 +544,11 @@ class DbSearchFunctions():
         proteoform_disulfide_positions
     ):
         # count ion matches for each proteoform
-        print('Searching b or c-type ions...')
+        info('Searching b or c-type ions...')
         fast_search = FastDbSearchFunctions(accuracy)
         b_match_list = fast_search.count_matches_for_proteins(theo_b_ions, observed_ions)
         #b_match_list = self.count_matches_for_proteins(theo_b_ions, observed_ions, accuracy)
-        print('Searching y or z-type ions...')
+        info('Searching y or z-type ions...')
         fast_search = FastDbSearchFunctions(accuracy)
         y_match_list = fast_search.count_matches_for_proteins(theo_y_ions, observed_ions)
         #y_match_list = self.count_matches_for_proteins(theo_y_ions, observed_ions, accuracy)

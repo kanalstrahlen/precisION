@@ -2,6 +2,8 @@ import os
 import wx
 import pandas as pd
 
+from logger import info, warn, error, success
+
 
 class FilterWindow(wx.Frame):
     def __init__(self, parent, title, file_path, directory_path):
@@ -98,5 +100,5 @@ class FilterWindow(wx.Frame):
 
         output_file = os.path.join(self.directory_path, f"{self.basename}.filteredPeakList.csv")
         peak_list.to_csv(output_file, index=False)
-        print(f"Saved filtered peak list to: {output_file}")
+        success(f"Saved filtered peak list to: {output_file}")
         self.Close()

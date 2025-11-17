@@ -11,6 +11,8 @@ from scipy.signal import convolve
 from tqdm import tqdm
 import plotly.graph_objects as go
 
+from logger import info, warn, error, success
+
 warnings.filterwarnings('ignore')
 
 class RLPeakPicking():
@@ -69,7 +71,7 @@ class RLPeakPicking():
         total_convolution = []
         total_mz = []
 
-        print("Running RL deconvolution.")
+        info("[b]Running RL deconvolution.")
         for i in tqdm(range(num_windows)):
             window_min = i * window_width
             window_max = (i+1) * window_width
@@ -542,7 +544,7 @@ class RLPeakPicking():
             modified_content = content.replace(old_id, new_id)
             with open(self.output_centroid, "w") as file:
                 file.write(modified_content)
-                print(f"save centroid file as {self.output_centroid}")
+                info(f"Saved centroid file as {self.output_centroid}")
 
 
     def make_centroid_mzml(self):
@@ -560,7 +562,7 @@ class RLPeakPicking():
         try:
             subprocess.run(pwiz_command, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error while executing proteowizard: {e}")
+            error(f"Error while executing proteowizard: {e}")
 
         #replace scan description
         old_scan = "single_scan"
@@ -735,7 +737,7 @@ class CWTPeakPicking():
         try:
             subprocess.run(pwiz_command, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error while executing proteowizard: {e}")
+            error(f"Error while executing proteowizard: {e}")
 
         #replace scan description
         old_scan = "single_scan"

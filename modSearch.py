@@ -7,7 +7,7 @@ import time
 
 from modTerminalSearchValidation import ModTerminalSearchValidationWindow
 from modInternalSearchValidation import ModInternalSearchValidationWindow
-
+from logger import info, warn, error, success
 
 
 class ModSearchWindow(wx.Frame):
@@ -197,7 +197,7 @@ class ModSearchWindow(wx.Frame):
             self.directory_path, f"{self.basename}.assignedPeakList.csv"
         )
         if not os.path.exists(peak_assignment_file):
-            print("Unmodified terminal fragments should be assigned first.")
+            error("Unmodified terminal fragments should be assigned first.")
             return
         self.update_protein_name()
         mod_list = self.gen_mod_list()
@@ -210,7 +210,7 @@ class ModSearchWindow(wx.Frame):
             self.directory_path, f"{self.basename}.assignedPeakList.csv"
         )
         if not os.path.exists(peak_assignment_file):
-            print("Unmodified terminal fragments should be assigned first.")
+            error("Unmodified terminal fragments should be assigned first.")
             return
         self.update_protein_name()
         mod_list = self.gen_mod_list()
@@ -229,8 +229,9 @@ class ModSearchWindow(wx.Frame):
             prev_sequence = peak_list.loc[index, 'sequence']
             if self.sequence != prev_sequence:
                 self.name = f'{self.name}_newIsoform{random.randint(10,99)}'
-                print("Protein ID has already been used for another sequence!")
-                print(f"Updating ID to {self.name}")
+                warn("Protein ID has already been used for another sequence!"
+                    f"Updating ID to {self.name}"
+                )
 
 
     def terminal_matching(self, mod_details):
@@ -256,8 +257,9 @@ class ModSearchWindow(wx.Frame):
     def internal_matching(self, mod_details):
 
         if self.ion_type_dropdown.GetValue() == "c/z•":
-            print("Internal fragments produced by ExD are not currently supported in precisION.")
-            print("Support will be added once mechanistic details are further explored.")
+            error("Internal fragments produced by ExD are not currently supported in precisION."
+                  "Support will be added once mechanistic details are further explored."
+            )
             return
 
         val_window = ModInternalSearchValidationWindow(
