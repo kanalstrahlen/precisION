@@ -13,7 +13,7 @@ class ModDiscoveryWindow(wx.Frame):
             parent,
             title=title,
             size=(460, 750),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
         column_width = 350
@@ -128,10 +128,10 @@ class ModDiscoveryWindow(wx.Frame):
         offset_range_sizer = wx.BoxSizer(wx.HORIZONTAL)
         offset_range_text = wx.StaticText(self.panel, label="Offset range (Da):")
         self.offset_range_lower = wx.TextCtrl(self.panel, size=(40, 20))
-        self.offset_range_lower.SetValue("-100")
+        self.offset_range_lower.SetValue("-500")
         offset_range_text2 = wx.StaticText(self.panel, label="-")
         self.offset_range_upper = wx.TextCtrl(self.panel, size=(40, 20))
-        self.offset_range_upper.SetValue("500")
+        self.offset_range_upper.SetValue("1000")
 
         offset_range_sizer.Add(offset_range_text, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         offset_range_sizer.Add(self.offset_range_lower, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)

@@ -30,7 +30,7 @@ class FragmentAnnotatorWindow(wx.Frame):
             parent,
             title=title,
             size=(375, 515),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
         self.file_path = file_path
@@ -151,7 +151,7 @@ class FragmentAnnotatorWindow(wx.Frame):
         button_subsizer4 = wx.BoxSizer(wx.HORIZONTAL)
         view_plots_button = wx.Button(self.panel, label="View Validation Plots", size=(170,30))
         view_plots_button.Bind(wx.EVT_BUTTON, self.on_view_plots_button)
-        filter_assignments_button = wx.Button(self.panel, label="Filter Assignments", size=(170,30))
+        filter_assignments_button = wx.Button(self.panel, label="Edit/Filter Assignments", size=(170,30))
         filter_assignments_button.Bind(wx.EVT_BUTTON, self.on_filter_assignments_button)
 
         button_subsizer4.Add(view_plots_button, 0, wx.RIGHT, 5)
@@ -349,7 +349,7 @@ class FragmentAnnotatorWindow(wx.Frame):
         if os.path.exists(annotated_peaks_path):
             FilterAssignmentsWindow(
                 self,
-                f"precisION - Filter Assignments [{os.path.basename(self.file_path)}]",
+                f"precisION - Edit/Filter Assignments [{os.path.basename(self.file_path)}]",
                 annotated_peaks_path
             )
         else:
@@ -662,18 +662,19 @@ class AnnotatorSpectrumPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self.fit_figure_to_canvas)
 
 
-    def fit_plot_to_panel(self):
+    def fit_figure_to_canvas(self):
+        #size the figure to match the canvas drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
         try:
-            size = self.GetClientSize()
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
-        except:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
             pass
+        self.canvas.draw_idle()

@@ -139,6 +139,9 @@ class InternalSearchValidationWindow(wx.Frame):
         self.spectrum_x_array = np.array(self.spectrum_x)
         self.spectrum_y = self.spectrum[:, 1]
 
+        # precompute per-residue masses once; every truncation is a slice of these
+        self.aa_cumsum, self.water_mass = self.precompute_residue_masses(self.sequence)
+
         info("Calculating background matching...")
         expected = self.calculate_background()
         info(f"Mean background matching = {expected}")
@@ -171,7 +174,7 @@ class InternalSearchValidationWindow(wx.Frame):
     def calculate_background(self):
         unassigned_peaks = self.assignment_df[pd.isna(self.assignment_df['name'])]
         unassigned_peak_list = unassigned_peaks["monoisotopic_mw"].tolist()
-        theo_b_ions, _ = self.theoretical_mass_generator(self.sequence)
+        theo_b_ions, _ = self.theoretical_mass_generator(self.aa_cumsum, self.water_mass)
         expected = self.background_matching(unassigned_peak_list, theo_b_ions)
         return expected
 
@@ -182,8 +185,9 @@ class InternalSearchValidationWindow(wx.Frame):
 
         n_term = []
         for j in range(len(self.sequence)):
-            test_sequence = self.sequence[j:]
-            theo_b_ions, _ = self.theoretical_mass_generator(test_sequence)
+            # b-ion ladder of sequence[j:] is a slice of the full cumsum
+            sub_cumsum = self.aa_cumsum[j:] - (self.aa_cumsum[j-1] if j > 0 else 0)
+            theo_b_ions, _ = self.theoretical_mass_generator(sub_cumsum, self.water_mass)
             num_matches = self.count_matched_ions(unassigned_peak_list, theo_b_ions)
             n_term.append(num_matches)
 
@@ -202,8 +206,9 @@ class InternalSearchValidationWindow(wx.Frame):
 
         c_term = []
         for j in range(len(self.sequence)):
-            test_sequence = self.sequence[:j+1]
-            _, theo_y_ions = self.theoretical_mass_generator(test_sequence)
+            # y-ion ladder of sequence[:j+1] is a prefix of the full cumsum
+            sub_cumsum = self.aa_cumsum[:j+1]
+            _, theo_y_ions = self.theoretical_mass_generator(sub_cumsum, self.water_mass)
             theo_y_ions = [ion_mass - 18.0105646863 for ion_mass in theo_y_ions]
             num_matches = self.count_matched_ions(unassigned_peak_list, theo_y_ions)
             c_term.append(num_matches)
@@ -520,17 +525,12 @@ class InternalSearchValidationWindow(wx.Frame):
                 self.calculate_propensity(old_frag2[0], old_frag2[1])
             )
             old_prop = round(math.log10(old_prop), 1)
-            if new_score >= old_score and new_prop >= old_prop:
+            if new_prop >= old_prop:
                 self.on_true_button(None)
                 return
-            elif new_score <= old_score and new_prop < old_prop:#
+            else:
                 self.on_false_button(None)
                 return
-            else:
-                warn(f"Fragment has already been assigned as {prev_ion}")
-                info(f"[yellow]Old score: {round(old_score,2)} New score: {round(new_score,2)}[/yellow]")
-                info(f"[yellow]Old propensity score: {old_prop} New propensity score: {new_prop}[/yellow]")
-                info("[yellow]Propensity scores closer to 0 are more likely.[/yellow]")
         else:
             pass
 
@@ -737,22 +737,17 @@ class InternalSearchValidationWindow(wx.Frame):
         ion_masses = []
 
         if n_term:
-            sequence = sequence[start_index:]
-        else:
-            sequence = sequence[:start_index+1]
-
-        # replace c with custom aa B to enable disulfide calc
-        mass.std_aa_comp["B"] = mass.Composition({'C': 3, 'H': 4, 'N': 1, 'O': 1, 'S': 1})
-        sequence = sequence.replace('c', 'B')
-
-        sequence_mass = mass.calculate_mass(sequence, ion_type="M") # intact mass
-        aa_masses = np.array([mass.calculate_mass(aa, ion_type="b") for aa in sequence])
-
-        if n_term:
-            ion_masses = np.cumsum(aa_masses)
+            # b-ion ladder of sequence[start_index:] is a slice of the full cumsum
+            sub_cumsum = self.aa_cumsum[start_index:] - (
+                self.aa_cumsum[start_index-1] if start_index > 0 else 0
+            )
+            ion_masses = sub_cumsum
             ion_masses = ion_masses[:-1]
         else:
-            ion_masses = sequence_mass - np.cumsum(aa_masses) - 18.0105646863
+            # y-ion ladder of sequence[:start_index+1] is a prefix of the full cumsum
+            sub_cumsum = self.aa_cumsum[:start_index+1]
+            sequence_mass = sub_cumsum[-1] + self.water_mass # intact mass
+            ion_masses = sequence_mass - sub_cumsum - 18.0105646863
             ion_masses = ion_masses[:-1]
             ion_masses.sort()
 
@@ -812,30 +807,36 @@ class InternalSearchValidationWindow(wx.Frame):
         return rounded
 
 
-    def theoretical_mass_generator(self, sequence):
-        # lists of b and y ions
-        theo_b_ions_list = []
-        theo_y_ions_list = []
-
+    def precompute_residue_masses(self, sequence):
         # replace c with custom aa B to enable disulfide calc
         mass.std_aa_comp["B"] = mass.Composition({'C': 3, 'H': 4, 'N': 1, 'O': 1, 'S': 1})
         sequence = sequence.replace('c', 'B')
 
-        sequence_mass = mass.calculate_mass(sequence, ion_type="M") # intact mass
         aa_masses = np.array([mass.calculate_mass(aa, ion_type="b") for aa in sequence])
+        aa_cumsum = np.cumsum(aa_masses) # running total along the full sequence
+
+        water_mass = mass.calculate_mass(formula="H2O") # intact mass = cumsum + water
+
+        return aa_cumsum, water_mass
+
+
+    def theoretical_mass_generator(self, aa_cumsum, water_mass):
+        # lists of b and y ions
+        theo_b_ions_list = []
+        theo_y_ions_list = []
+
+        sequence_mass = aa_cumsum[-1] + water_mass # intact mass
 
         b_ion_masses = (
-            np.cumsum(aa_masses)
+            aa_cumsum
         )
         y_ion_masses = (
             sequence_mass -
-            np.cumsum(aa_masses)
+            aa_cumsum
         )
 
         theo_b_ions_list.append(b_ion_masses[:-1]) # exclude the dehydrated full protein
         theo_y_ions_list.append(y_ion_masses[:-1])
-
-        theo_y_ions_list.sort()
 
         theo_b_ions = theo_b_ions_list[0]
         theo_y_ions = theo_y_ions_list[0]
@@ -856,8 +857,7 @@ class InternalSearchValidationWindow(wx.Frame):
 
         match_count_list = []
         for offset in tqdm(offset_list, total=len(offset_list)):
-            temp_theo_ions = [ion_mass + offset for ion_mass in theo_ions]
-            match_count = self.count_matched_ions(peak_list, temp_theo_ions)
+            match_count = self.count_matched_ions(peak_list, theo_ions + offset)
             match_count_list.append(match_count)
 
         mean_matches = statistics.mean(match_count_list)
@@ -866,17 +866,13 @@ class InternalSearchValidationWindow(wx.Frame):
 
 
     def count_matched_ions(self, peak_list, theo_ions):
-        match_count = 0
+        # vectorised binary search; counts theo ions with >=1 observed peak in window
+        peak_list = np.asarray(peak_list)
+        theo_ions = np.asarray(theo_ions)
 
-        def binary_search(arr, target, ppm_threshold):
-            low = bisect.bisect_left(arr, target * (1 - ppm_threshold / 1e6))
-            high = bisect.bisect_right(arr, target * (1 + ppm_threshold / 1e6))
-            return high - low
-
-        for ion in theo_ions:
-            num_matches = binary_search(peak_list, ion, self.accuracy)
-            if num_matches >=1:
-                match_count += 1
+        low = np.searchsorted(peak_list, theo_ions * (1 - self.accuracy / 1e6), side="left")
+        high = np.searchsorted(peak_list, theo_ions * (1 + self.accuracy / 1e6), side="right")
+        match_count = int(np.count_nonzero(high - low >= 1))
 
         return match_count
 
@@ -916,8 +912,15 @@ class InternalSearchValidationWindow(wx.Frame):
 
 
     def find_closest_index(self, value, array):
-        closest_index = np.abs(array - value).argmin()
-        return closest_index
+        # spectrum m/z axis is sorted, so binary search beats a full O(N) scan
+        idx = np.searchsorted(array, value)
+        if idx == 0:
+            return 0
+        if idx == len(array):
+            return len(array) - 1
+        if abs(array[idx] - value) < abs(array[idx - 1] - value):
+            return idx
+        return idx - 1
 
 
     def formula_to_string(self, formula):
@@ -1075,16 +1078,19 @@ class ValidationPlotsPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self.fit_figure_to_canvas)
 
 
-    def fit_plot_to_panel(self):
-        size = self.GetClientSize()
-        if size[0] >= 50:
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
+    def fit_figure_to_canvas(self):
+        #size the figure to match the canvas drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
+        try:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.canvas.draw_idle()

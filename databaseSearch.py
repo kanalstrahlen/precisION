@@ -74,7 +74,7 @@ class DbSearchWindow(wx.Frame):
         accuracy_text = wx.StaticText(self.panel, label="Accuracy (ppm): ")
         self.accuracy_text_ctrl = wx.TextCtrl(self.panel, size = (30, 20), value = "10")
         mw_text = wx.StaticText(self.panel, label="MW range (kDa): ")
-        self.min_mw_text_ctrl = wx.TextCtrl(self.panel, size = (30, 20), value = "5")
+        self.min_mw_text_ctrl = wx.TextCtrl(self.panel, size = (30, 20), value = "2")
         dash_text = wx.StaticText(self.panel, label = "-")
         self.max_mw_text_ctrl = wx.TextCtrl(self.panel, size = (30, 20), value = "100")
         ion_type_text = wx.StaticText(self.panel, label = "Ion type:")
@@ -108,9 +108,15 @@ class DbSearchWindow(wx.Frame):
         options_subsizer2.Add(ion_type_text, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         options_subsizer2.Add(self.ion_type_dropdown, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
 
+        # count peaks already assigned to an ion only when ticked; only meaningful
+        # when the assignedPeakList exists, so its enabled state is set after load
+        self.include_assigned = wx.CheckBox(self.panel, label="Include already-assigned peaks")
+        self.include_assigned.SetValue(True)
+
         options_sizer.Add(options_text, 0, wx.BOTTOM, 5)
         options_sizer.Add(options_subsizer, 0, wx.BOTTOM,  10)
         options_sizer.Add(options_subsizer2, 0, wx.BOTTOM,  5)
+        options_sizer.Add(self.include_assigned, 0, wx.BOTTOM,  5)
 
         menu_sizer.Add(title, 0, wx.BOTTOM, 5)
         menu_sizer.Add(subtext1, 0, wx.BOTTOM, 5)
@@ -173,6 +179,10 @@ class DbSearchWindow(wx.Frame):
         self.load_spectrum(file_path)
         self.run_tracker = False # used to check if search has been run- grid cant be easily updated
 
+        # the assigned-peaks toggle only applies when the assignedPeakList exists
+        assigned_path = os.path.join(self.directory_path, f"{self.basename}.assignedPeakList.csv")
+        self.include_assigned.Enable(os.path.exists(assigned_path))
+
         self.panel.SetSizer(main_sizer)
         self.panel.Bind(wx.EVT_SIZE, self.on_size)
         self.Show()
@@ -190,6 +200,7 @@ class DbSearchWindow(wx.Frame):
         self.matched_disulfide_positions = []
         self.num_matched_b_ions = []
         self.num_matched_y_ions = []
+        self.matched_nfps = []
 
 
     def on_size(self, event):
@@ -219,13 +230,26 @@ class DbSearchWindow(wx.Frame):
 
 
     def load_peaks(self, df = True):
-        peak_file_path = os.path.join(self.directory_path, f"{self.basename}.filteredPeakList.csv")
-        peak_list = pd.read_csv(peak_file_path)
+        # prefer the recalibrated assigned peaks if they exist
+        peak_file_path = os.path.join(self.directory_path, f"{self.basename}.assignedPeakList.csv")
+        if os.path.exists(peak_file_path):
+            peak_list = pd.read_csv(peak_file_path)
 
-        # sort here for binary search and subsequent indexing
-        peak_list = peak_list.sort_values(by="monoisotopic_mw")
+            # sort here for binary search and subsequent indexing
+            peak_list = peak_list.sort_values(by="monoisotopic_mw")
 
-        peak_list = peak_list[peak_list["prediction"] == True]
+            # optionally drop peaks already assigned to an ion, keeping unassigned ones
+            if not self.include_assigned.GetValue():
+                assigned = peak_list["ion"].notna() & (peak_list["ion"] != "None")
+                peak_list = peak_list[~assigned]
+        else:
+            peak_file_path = os.path.join(self.directory_path, f"{self.basename}.filteredPeakList.csv")
+            peak_list = pd.read_csv(peak_file_path)
+
+            # sort here for binary search and subsequent indexing
+            peak_list = peak_list.sort_values(by="monoisotopic_mw")
+
+            peak_list = peak_list[peak_list["prediction"] == True]
 
         # vary if just the list of masses or full dataframe is required
         if df:
@@ -286,8 +310,10 @@ class DbSearchWindow(wx.Frame):
             proteoform_n_term_mods,
             proteoform_mws,
             proteoform_disulfide_positions,
-            theo_b_ions,
-            theo_y_ions
+            b_index_masses,
+            b_index_owners,
+            y_index_masses,
+            y_index_owners
         ) = db_search.write_read_proteoform_file(
             h5_save_path,
             self.database_file,
@@ -312,8 +338,10 @@ class DbSearchWindow(wx.Frame):
             self.num_matched_y_ions
         ) = db_search.database_search(
             observed_peaks,
-            theo_b_ions,
-            theo_y_ions,
+            b_index_masses,
+            b_index_owners,
+            y_index_masses,
+            y_index_owners,
             self.accuracy,
             proteoform_ids,
             proteoform_sequences,
@@ -321,6 +349,27 @@ class DbSearchWindow(wx.Frame):
             proteoform_mws,
             proteoform_disulfide_positions
         )
+
+        # precompute nfps for each match so row selection is instant
+        self.matched_nfps = []
+        for sequence, n_terminal_modification, disulfide_positions in zip(
+            self.matched_sequences,
+            self.matched_n_term_mods,
+            self.matched_disulfide_positions
+        ):
+            if self.ion_type == "b/y":
+                try:
+                    nfps = self.calculate_nfps(
+                        sequence,
+                        n_terminal_modification,
+                        disulfide_positions,
+                        observed_peaks
+                    )
+                except KeyError: # sequence contains a residue with no propensity value
+                    nfps = None
+                self.matched_nfps.append(nfps)
+            else:
+                self.matched_nfps.append(None)
 
         df = pd.DataFrame({
             "Proteoform ID": self.matched_ids,
@@ -339,7 +388,7 @@ class DbSearchWindow(wx.Frame):
                 self.data_grid.SetCellValue(row, col, value)
         column_names = [
             "ID",
-            "Molecular weight", 
+            "Molecular weight",
             "# b ions",
             "# y ions",
             "Total # ions",
@@ -365,11 +414,8 @@ class DbSearchWindow(wx.Frame):
         n_terminal_modification = self.matched_n_term_mods[self.selected_row]
         disulfide_positions = self.matched_disulfide_positions[self.selected_row]
 
-        # nFPS isn't applicable to this data
-        if self.ion_type == "b/y":
-            nfps = self.calculate_nfps(sequence, n_terminal_modification, disulfide_positions)
-        else:
-            nfps = None
+        # nfps is precomputed during the search
+        nfps = self.matched_nfps[self.selected_row]
 
         b_ions, y_ions = DbSearchFunctions.theoretical_frag_generator_single_search(
             sequence,
@@ -466,7 +512,7 @@ class DbSearchWindow(wx.Frame):
         )
 
 
-    def calculate_nfps(self, forward_sequence, n_terminal_modification, disulfide_positions):
+    def calculate_nfps(self, forward_sequence, n_terminal_modification, disulfide_positions, mass_list=None):
         # helper function to generate decoy sequences
         def generate_shuffled_string(input_string):
             characters = list(input_string)
@@ -522,8 +568,9 @@ class DbSearchWindow(wx.Frame):
         }
 
         # load in observed data
-        observed_peaks = self.load_peaks()
-        mass_list = observed_peaks["monoisotopic_mw"].tolist()
+        if mass_list is None:
+            observed_peaks = self.load_peaks()
+            mass_list = observed_peaks["monoisotopic_mw"].tolist()
 
         # determine matched ions and their positions in the sequence
         b_ions, y_ions = DbSearchFunctions.theoretical_frag_generator_single_search(
@@ -724,19 +771,27 @@ class DbSearchSpectrumPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self._fit_figure_to_canvas)
 
+    def _fit_figure_to_canvas(self):
+        # Size the *figure* to match the *canvas* drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
 
-    def fit_plot_to_panel(self):
-        size = self.GetClientSize()
-        if size[0] >= 51:
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
+
+        # Keep margins sane; choose ONE of these:
+        # Option A (recommended): constrained_layout on the Figure (see below) -> no tight_layout call needed
+        # Option B: use tight_layout lightly:
+        try:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
+            pass
+
+        self.canvas.draw_idle()
 
 
 

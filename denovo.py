@@ -505,16 +505,19 @@ class DeNovoSpectrumPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self.fit_figure_to_canvas)
 
 
-    def fit_plot_to_panel(self):
-        size = self.GetClientSize()
-        if size[0] >= 50:
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
+    def fit_figure_to_canvas(self):
+        #size the figure to match the canvas drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
+        try:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.canvas.draw_idle()

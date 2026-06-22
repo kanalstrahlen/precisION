@@ -50,9 +50,9 @@ class DeconvolutionWindow(wx.Frame):
         mode_header = wx.StaticText(panel, label="Deconvolution mode")
         mode_header.SetFont(subtitle_font)
         mode_label = wx.StaticText(panel, label="Preset:")
-        mode_choices = ["Extensive", "Rapid"]
+        mode_choices = ["Extensive (Orbitrap Only)", "Rapid"]
         self.mode_dropdown = wx.ComboBox(panel, choices=mode_choices, style=wx.CB_READONLY)
-        self.mode_dropdown.SetValue("Rapid")
+        self.mode_dropdown.SetValue("Extensive (Orbitrap Only)")
 
         mode_sizer.Add(mode_header, 0, wx.EXPAND | wx.BOTTOM, 5)
         mode_sizer.Add(mode_label, 0, wx.ALIGN_LEFT)
@@ -172,7 +172,7 @@ class DeconvolutionWindow(wx.Frame):
 
         html_label = wx.StaticText(panel, label="Save deconvolved spectrum (large file size):")
         self.html_checkbox = wx.CheckBox(panel)
-        self.html_checkbox.SetValue(True)
+        self.html_checkbox.SetValue(False)
 
         html_sizer.Add(html_label, 0)
         html_sizer.Add(self.html_checkbox, 0, wx.LEFT, 5)
@@ -215,14 +215,6 @@ class DeconvolutionWindow(wx.Frame):
             file_path = os.path.join(self.directory_path, file)
             file_name = os.path.basename(file)
 
-            path_without_ext = os.path.splitext(file_path)[0]
-            if "." in path_without_ext:
-                warn(
-                   f"Skipping file '{file_name}' \n"
-                   f"The full path '{file_path}' contains a period ('.'). "
-                   "TopFD cannot handle paths with periods. Please change directories or files."
-                   )
-                continue
             folder_path = os.path.join(
                 self.directory_path,
                 f"{os.path.splitext(file_name)[0]}_precisION_files"
@@ -231,7 +223,7 @@ class DeconvolutionWindow(wx.Frame):
                 os.makedirs(folder_path)
                 info(f"Created folder: {folder_path}")
 
-            if mode == 'Extensive':
+            if mode == 'Extensive (Orbitrap Only)':
                 info(f"[b]Deconvolving {file} using extensive settings")
                 file_base = os.path.basename(file_path).replace(".txt", "")
                 cwt_file = os.path.join(folder_path, f"{file_base}.centroid.cwt.txt")

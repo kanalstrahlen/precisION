@@ -25,10 +25,10 @@ class LauncherWindow(wx.Frame):
             parent,
             title="precisION",
             size=(905, 300),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
-        info("[bold]precisION v.0.3.0")
+        info("[bold]precisION v.0.4.0")
         info("If you use this software, please cite:")
         info("Bennett, J.L. et al. [i]Uncovering hidden protein modifications with native top-down mass spectrometry.[/i] Nat Methods (2025).\n")
 

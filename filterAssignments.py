@@ -1,5 +1,8 @@
+import os
+
 import pandas as pd
 import wx
+import wx.adv
 
 from logger import info, warn, error, success
 
@@ -8,7 +11,7 @@ class FilterAssignmentsWindow(wx.Frame):
         super().__init__(
             parent,
             title=title,
-            size=(340, 365),
+            size=(340, 400),
             style=wx.DEFAULT_FRAME_STYLE
         )
 
@@ -40,12 +43,21 @@ class FilterAssignmentsWindow(wx.Frame):
         main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # window title
-        title = wx.StaticText(panel, label="Filter Assignments")
+        title = wx.StaticText(panel, label="View/Edit/Filter Assignments")
         title.SetFont(wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         subtext = wx.StaticText(
             panel,
             label="Filter assignments to exclude outliers and correct mistakes."
         )
+
+        # link to open the assignment file in the default program for manual editing
+        open_file_link = wx.adv.HyperlinkCtrl(
+            panel,
+            id=wx.ID_ANY,
+            label="Open assignment file (CSV) in default program",
+            url=""
+        )
+        open_file_link.Bind(wx.adv.EVT_HYPERLINK, self.on_open_file)
 
         options_staticbox = wx.StaticBox(panel)
         options_sizer = wx.StaticBoxSizer(options_staticbox, wx.VERTICAL)
@@ -124,7 +136,8 @@ class FilterAssignmentsWindow(wx.Frame):
         options_sizer.Add(set_button, 0, wx.BOTTOM, 5)
 
         main_sizer.Add(title, 0, wx.EXPAND | wx.BOTTOM, 5)
-        main_sizer.Add(subtext, 0, wx.EXPAND | wx.BOTTOM, 0)
+        main_sizer.Add(subtext, 0, wx.EXPAND | wx.BOTTOM, 5)
+        main_sizer.Add(open_file_link, 0, wx.EXPAND | wx.BOTTOM, 5)
         main_sizer.Add(options_sizer, 0, wx.EXPAND | wx.BOTTOM, 0)
 
         panel_sizer.Add(main_sizer, 0, wx.ALL, 5)
@@ -134,6 +147,13 @@ class FilterAssignmentsWindow(wx.Frame):
 
         panel.SetSizer(panel_sizer)
         self.Show()
+
+
+    def on_open_file(self, event):
+        try:
+            os.startfile(self.assignment_file)
+        except Exception as e:
+            error(f"Could not open assignment file: {e}")
 
 
     def on_ppm_button(self, event):
@@ -244,3 +264,4 @@ class FilterAssignmentsWindow(wx.Frame):
 
         assignment_list.to_csv(self.assignment_file, index=False)
         info("[b]Removed selected set of ions.")
+ 

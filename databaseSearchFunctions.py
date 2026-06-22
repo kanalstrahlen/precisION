@@ -8,10 +8,8 @@ from brainpy import isotopic_variants
 import h5py
 from tqdm import tqdm
 
-from fastDatabaseSearchFunctions import FastDbSearchFunctions
 from logger import info, warn, error, success
 
-# to change; change to index search with nested B tree
 
 class DbSearchFunctions():
     def write_read_proteoform_file(
@@ -58,19 +56,9 @@ class DbSearchFunctions():
                 ion_type
             )
 
-            # zero pad each array to allow h5 file to be saved
-            b_max_length = max(len(arr) for arr in theo_b_ions)
-            y_max_length = max(len(arr) for arr in theo_y_ions)
-            padded_theo_b_ions = [
-                np.pad(arr, (b_max_length - len(arr), 0), "constant")
-                for arr in theo_b_ions
-            ]
-            padded_theo_y_ions = [
-                np.pad(arr, (y_max_length - len(arr), 0), "constant")
-                for arr in theo_y_ions
-            ]
-            theo_b_ions_array = np.array(padded_theo_b_ions)
-            theo_y_ions_array = np.array(padded_theo_y_ions)
+            # build fragment-mass index for searching
+            b_index_masses, b_index_owners = self.build_fragment_index(theo_b_ions)
+            y_index_masses, y_index_owners = self.build_fragment_index(theo_y_ions)
 
             max_disulfide_length = max(len(arr) for arr in filtered_disulfide_positions)
             padded_disulfide_positions = [
@@ -91,26 +79,33 @@ class DbSearchFunctions():
                 file.create_dataset("sequence", data=filtered_sequences, dtype=dt)
                 file.create_dataset("n_term_mod", data=filtered_n_term_mods)
                 file.create_dataset("mw", data=filtered_mws)
-                file.create_dataset("b_ions", data=theo_b_ions_array)
-                file.create_dataset("y_ions", data=theo_y_ions_array)
+                file.create_dataset("b_index_masses", data=b_index_masses)
+                file.create_dataset("b_index_owners", data=b_index_owners)
+                file.create_dataset("y_index_masses", data=y_index_masses)
+                file.create_dataset("y_index_owners", data=y_index_owners)
                 file.create_dataset("disulfide_positions", data = disulfide_position_array)
 
         # read h5 file and save lists
         with h5py.File(h5_file_path, "r") as file:
-            proteoform_ids = list(file["id"])
-            proteoform_ids = [proteoform_id.decode("utf-8") for proteoform_id in proteoform_ids]
-            proteoform_sequences = list(file["sequence"])
-            proteoform_sequences = [sequence.decode("utf-8") for sequence in proteoform_sequences]
+            # asstr decodes all strings in one go
+            proteoform_ids = list(file["id"].asstr()[:])
+            proteoform_sequences = list(file["sequence"].asstr()[:])
             proteoform_n_term_mods = list(file["n_term_mod"])
             proteoform_mws = list(file["mw"])
-            theo_b_ions = list(file["b_ions"])
-            theo_y_ions = list(file["y_ions"])
-            proteoform_disulfide_positions = []
+            # load the fragment index; rebuild from the padded ion arrays for older files
+            if "b_index_masses" in file:
+                b_index_masses = np.array(file["b_index_masses"])
+                b_index_owners = np.array(file["b_index_owners"])
+                y_index_masses = np.array(file["y_index_masses"])
+                y_index_owners = np.array(file["y_index_owners"])
+            else:
+                b_index_masses, b_index_owners = self.build_fragment_index(np.array(file["b_ions"]))
+                y_index_masses, y_index_owners = self.build_fragment_index(np.array(file["y_ions"]))
             # remove padding values
-            temp_disulfide_positions = list(file["disulfide_positions"])
-            for pos_list in temp_disulfide_positions:
-                new_pos_list = [x for x in pos_list if x != 999.9999]
-                proteoform_disulfide_positions.append(new_pos_list)
+            temp_disulfide_positions = np.array(file["disulfide_positions"])
+            proteoform_disulfide_positions = [
+                row[row != 999.9999].tolist() for row in temp_disulfide_positions
+            ]
 
         return (
             proteoform_ids,
@@ -118,8 +113,10 @@ class DbSearchFunctions():
             proteoform_n_term_mods,
             proteoform_mws,
             proteoform_disulfide_positions,
-            theo_b_ions,
-            theo_y_ions
+            b_index_masses,
+            b_index_owners,
+            y_index_masses,
+            y_index_owners
         )
 
 
@@ -305,38 +302,40 @@ class DbSearchFunctions():
         )
 
 
-    def count_matches_for_proteins(
-        self, theoretical_ions_for_each_proteoform,
-        observed_ions, ppm_threshold
+    def build_fragment_index(self, theoretical_ions_for_each_proteoform):
+        # flatten every fragment into one mass-sorted array, keeping its proteoform
+        masses = []
+        owners = []
+        for i, ions in enumerate(theoretical_ions_for_each_proteoform):
+            ions = np.asarray(ions)
+            ions = ions[ions > 0] # skip zero padding
+            masses.append(ions)
+            owners.append(np.full(len(ions), i))
+        masses = np.concatenate(masses)
+        owners = np.concatenate(owners)
+        order = np.argsort(masses)
+        return masses[order], owners[order]
+
+
+    def count_matches_by_index(
+        self, index_masses, index_owners, observed_ions, num_proteoforms, ppm_threshold
     ):
-        # takes input of list of lists (each list is a list of theoretical ions for each proteoform)
-        # binary search w/ ppm tolerance helper function
-        def binary_search(arr, target, ppm_threshold):
-            low = bisect.bisect_left(arr, target * (1 - ppm_threshold / 1e6))
-            high = bisect.bisect_right(arr, target * (1 + ppm_threshold / 1e6))
-            return high - low
+        # for each peak find the fragments within ppm tolerance (index position is a unique id)
+        matched = []
+        for peak in observed_ions:
+            low = np.searchsorted(index_masses, peak * (1 - ppm_threshold / 1e6), side="left")
+            high = np.searchsorted(index_masses, peak * (1 + ppm_threshold / 1e6), side="right")
+            matched.append(np.arange(low, high))
 
-        # sort for binary search
-        observed_ions.sort()
+        if matched:
+            matched = np.concatenate(matched)
+        else:
+            matched = np.array([], dtype=int)
 
-        # list to store the number of matches for each protein
-        matches_per_proteoform = []
-
-        # iterate through each proteoform and count matches
-        for theoretical_ions in tqdm(
-            theoretical_ions_for_each_proteoform,
-            total=len(theoretical_ions_for_each_proteoform)
-        ):
-            theoretical_ions.sort() # sort for binary search
-            matches = 0 # initialize count
-            for ion in theoretical_ions:
-                match_test = binary_search(observed_ions, ion, ppm_threshold)
-                if match_test >= 1:
-                    matches += 1
-
-            matches_per_proteoform.append(matches)
-
-        return matches_per_proteoform
+        # count each fragment once, then tally matches per proteoform
+        matched = np.unique(matched)
+        counts = np.bincount(index_owners[matched], minlength=num_proteoforms)
+        return counts.tolist()
 
 
     def report_matches_for_protein(
@@ -445,13 +444,17 @@ class DbSearchFunctions():
         theo_b_ions_list = []
         theo_y_ions_list = []
 
+        # precompute each residue's b-ion mass once (fast_mass is slow to call per residue)
+        unique_residues = set().union(*sequence_list)
+        aa_b_mass = {aa: mass.fast_mass(aa, ion_type="b") for aa in unique_residues}
+
         for i, (sequence, n_terminal_modification_mass) in tqdm(
             enumerate(zip(sequence_list, n_terminal_modification_mass_list)),
             desc='Processing sequences',
             total=len(sequence_list)
         ):
             sequence_mass = mass.fast_mass(sequence, ion_type="M")
-            aa_masses = np.array([mass.fast_mass(aa, ion_type="b") for aa in sequence])
+            aa_masses = np.array([aa_b_mass[aa] for aa in sequence])
 
             cumulative_disulfides = np.cumsum(disulfide_positions[i])
 
@@ -539,19 +542,21 @@ class DbSearchFunctions():
 
 
     def database_search(
-        self, observed_ions, theo_b_ions, theo_y_ions, accuracy,
+        self, observed_ions, b_index_masses, b_index_owners,
+        y_index_masses, y_index_owners, accuracy,
         proteoform_ids, proteoform_sequences, proteoform_n_term_mods, proteoform_mws,
         proteoform_disulfide_positions
     ):
-        # count ion matches for each proteoform
+        # count ion matches for each proteoform via the inverted fragment index
+        num_proteoforms = len(proteoform_sequences)
         info('Searching b or c-type ions...')
-        fast_search = FastDbSearchFunctions(accuracy)
-        b_match_list = fast_search.count_matches_for_proteins(theo_b_ions, observed_ions)
-        #b_match_list = self.count_matches_for_proteins(theo_b_ions, observed_ions, accuracy)
+        b_match_list = self.count_matches_by_index(
+            b_index_masses, b_index_owners, observed_ions, num_proteoforms, accuracy
+        )
         info('Searching y or z-type ions...')
-        fast_search = FastDbSearchFunctions(accuracy)
-        y_match_list = fast_search.count_matches_for_proteins(theo_y_ions, observed_ions)
-        #y_match_list = self.count_matches_for_proteins(theo_y_ions, observed_ions, accuracy)
+        y_match_list = self.count_matches_by_index(
+            y_index_masses, y_index_owners, observed_ions, num_proteoforms, accuracy
+        )
         total_match_list = [b + y for b, y in zip(b_match_list, y_match_list)]
 
         # sort and find the top 100 matches

@@ -37,7 +37,7 @@ class OffsetSearchWindow(wx.Frame):
         self.file_path = file_path
         # screen width variable to allow for smaller screens
         screen_width, screen_height = wx.DisplaySize()
-        self.SetSize((screen_width * 2 // 4, screen_height * 2 // 4))
+        self.SetSize((screen_width * 5 // 8, screen_height * 3 // 4))
 
         self.panel = wx.Panel(self)
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -256,19 +256,21 @@ class OffsetShiftCalculator():
 
         expected = np.mean(match_count_array)
 
-        p_score = np.zeros_like(match_count_array, dtype=float)
-
-        for i, match_count in enumerate(match_count_array):
-            p_score[i] = (
-                (expected ** match_count) *
-                math.exp(-1 * expected) /
-                math.factorial(match_count)
-            )
-
-        e_value = p_score * len(p_score)
-
         unique, counts = np.unique(match_count_array, return_counts=True)
         relative_freq = counts / np.sum(counts)
+
+        # Poisson p-score per offset, vectorised: (expected**k) * e^-expected / k!
+        # k! only depends on the (small, integer) match count, so compute it once
+        # per distinct value and broadcast back to every offset.
+        factorials = np.array([math.factorial(int(k)) for k in unique], dtype=float)
+        factorial_per_offset = factorials[np.searchsorted(unique, match_count_array)]
+        p_score = (
+            (expected ** match_count_array) *
+            math.exp(-1 * expected) /
+            factorial_per_offset
+        )
+
+        e_value = p_score * len(p_score)
 
         #plt.scatter(unique, relative_freq)
         #x = np.arange(
@@ -279,8 +281,11 @@ class OffsetShiftCalculator():
         ##print(expected)
         #plt.show()
 
-        for i, value in enumerate(e_value):
-            e_value[i] = self.neg_log_and_round(value, 1)
+        # Vectorised neg_log_and_round: -log10(|e_value|) rounded to 1 dp, 0 -> 0.0
+        nonzero = e_value != 0
+        rounded = np.zeros_like(e_value)
+        rounded[nonzero] = np.round(-np.log10(np.abs(e_value[nonzero])), 1)
+        e_value = rounded
 
         sorted_indices = np.argsort(match_count_array)[::-1]
         top_indices = []
@@ -301,16 +306,6 @@ class OffsetShiftCalculator():
         df = pd.DataFrame(data)
 
         return df
-
-
-    def neg_log_and_round(self, number, dp):
-        if number == 0:
-            return 0.0
-
-        neg_log = -1 * math.log10(abs(number))
-        rounded = round(neg_log, dp)
-
-        return rounded
 
 
     def offset_scan(self, peak_list, theo_ions):
@@ -642,21 +637,23 @@ class OffsetSearchPlotPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self.fit_figure_to_canvas)
 
 
-    def fit_plot_to_panel(self):
+    def fit_figure_to_canvas(self):
+        #size the figure to match the canvas drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
         try:
-            size = self.GetClientSize()
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
-        except:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
             pass
+        self.canvas.draw_idle()
+
 
     def b_ion_zoom(self, ion_mass, max_value):
         self.ax1.set_ylim(0, max_value * 1.2)

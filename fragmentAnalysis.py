@@ -10,6 +10,9 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib import colors
 import matplotlib.cm
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.transforms import Bbox
+from matplotlib.widgets import Slider
+import re
 import wx
 import wx.grid
 from Bio import PDB, pairwise2
@@ -216,7 +219,7 @@ class FragmentAnalysisWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             file_path = dlg.GetPath()
             self.pdb_text.SetValue(file_path)
-            info("Selected file:", file_path)
+            info(f"Selected file: {file_path}")
         dlg.Destroy()
 
 
@@ -413,7 +416,7 @@ class IntensityHistogram():
             bottom=b_intensity_array, width = 1, color='#b42920'
         )
         ax[1].set_xlim(min(resid_array), max(resid_array))
-        ax[1].set_xlabel("Residue number")
+        ax[1].set_xlabel("Residue index")
         ax[1].set_ylabel("Relative intensity (%)")
 
 # to do; fix errors and incorporate this sometime
@@ -559,7 +562,7 @@ class FragmentPosition():
 
         ax.set_xlim(1, max(resid_array))
         ax.set_ylim(0, len(sorted_unique_ions)+1)
-        ax.set_xlabel("Residue number")
+        ax.set_xlabel("Residue index")
         cbar = plt.colorbar(sm, ax=ax)
         cbar.set_label('# of ions observed')
         cbar.set_ticks(range(min(sorted_ion_occurences), max(sorted_ion_occurences)+1))
@@ -785,38 +788,46 @@ class Structure():
     def gen_structure_with_internals(self):
         name_data = self.peak_list[self.peak_list['name'] == self.name]
         sequence = name_data['sequence'].tolist()[0]
-
-        count_array = np.zeros(len(sequence)-1)
-
+    
+        count_array = np.zeros(len(sequence))
+    
         tuple_list = []
-
+    
         for _, row in name_data.iterrows():
             ion_name = row["ion"]
             ion_serie = ion_name[0]
-
+    
             end_index = int(ion_name.find(' '))
-
+    
             if ion_serie in ("b", "c"):
                 ion_index = int(ion_name[1:end_index])
-                pos_tuple = (1, int(ion_index))
+                pos_tuple = (1, ion_index)
+    
             elif ion_serie == "I":
                 ion_range = ion_name[1:end_index]
                 indices = ion_range.split("-")
                 start = int(indices[0]) + 1
                 end = int(indices[1])
                 pos_tuple = (start, end)
+    
             elif ion_serie in ("y", "z"):
                 ion_index = int(ion_name[1:end_index])
-                pos_tuple = (len(sequence) - int(ion_index) + 1, len(sequence))
-
+                pos_tuple = (len(sequence) - ion_index + 1, len(sequence))
+    
+            else:
+                continue
+    
             tuple_list.append(pos_tuple)
-
+    
         tuple_list = list(set(tuple_list))
+    
         for start, end in tuple_list:
-            count_array[start-1:end-1] += 1
-
-        count_array = count_array / max(count_array) * 100
-
+            count_array[start-1:end] += 1
+    
+        max_count = max(count_array)
+        if max_count > 0:
+            count_array = count_array / max_count * 100
+    
         self.edit_bfactor(self.pdb_file_path, count_array, "internal")
 
 
@@ -939,7 +950,7 @@ class Structure():
                             atom.bfactor = b_factor_array[k]
                         else:
                             atom.bfactor = 0
-        output_path = pdb_file_path.replace(".pdb", ".bfactor.pdb")
+        output_path = pdb_file_path.replace(".pdb", f".{structure_type}.pdb")
         io = PDB.PDBIO()
         io.set_structure(structure)
         io.save(output_path)
@@ -1180,7 +1191,7 @@ class ModFinder():
         
         ax2.set_xlim(1, max(resid_array))
         ax2.set_ylim(0, len(sorted_unmod_ions) + 1)
-        ax2.set_xlabel("Residue number")
+        ax2.set_xlabel("Residue index")
 
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
@@ -1347,121 +1358,583 @@ class FragmentStatistics():
 
 
 
-
 class AnnotatedSpectrum():
-    def create_plot(self, file_path, directory_path, name, colour):
+    def create_plot(
+        self,
+        file_path,
+        directory_path,
+        name,
+        colour,
+        spectrum_line_gap=0.5,
+        annotation_count=50,
+        downsample_target_points=30000
+    ):
+        info("Creating annotated spectrum plot... (this can take some time)")
+        self.set_arial_font()
+
         basename = os.path.basename(file_path).replace(".assignedPeakList.csv", "")
         spectrum_path = os.path.join(
             directory_path,
             f"{basename}.recalibratedSpectrum.txt"
         )
 
-        screen_width, screen_height = wx.DisplaySize()
-
         peak_list = pd.read_csv(file_path)
-        peak_list = peak_list.dropna(subset=['name'])
+        peak_list = peak_list.dropna(subset=["name"])
 
-        name_data = peak_list[peak_list['name'] == name]
+        name_data = peak_list[peak_list["name"] == name]
         name_data = name_data.sort_values(by="abundance", ascending=False)
 
         spectrum = np.loadtxt(spectrum_path)
         spectrum_x = np.array(spectrum[:, 0])
         spectrum_y = np.array(spectrum[:, 1])
-        spectrum_y = spectrum_y / max(spectrum_y) * 100
 
-        info("Creating plot...")
-        fig, ax = plt.subplots(
-            1, 1,
-            num=f"precisION - Annotated Spectrum [{name}]",
-            figsize=(screen_width/150, screen_height/150),
-            dpi=100
+        max_y = np.max(spectrum_y)
+        if max_y > 0:
+            spectrum_y = spectrum_y / max_y * 100
+
+        spectrum_plot_x, spectrum_plot_y = self.downsample_spectrum_minmax(
+            spectrum_x,
+            spectrum_y,
+            target_points=downsample_target_points
         )
+
+        fig_width = 8.27 * 0.75
+        fig_height = fig_width / 1.61803398875
+
+        fig, ax = plt.subplots(
+            1,
+            1,
+            num=f"precisION - Annotated Spectrum [{name}]",
+            figsize=(fig_width, fig_height)
+        )
+
         ax.set_xlim(min(spectrum_x), max(spectrum_x))
-        ax.set_ylim(0, 105)
+        ax.set_ylim(0, 160)
         ax.set_yticks([0, 50, 100])
-        ax.set_xlabel('m/z')
-        ax.set_ylabel('Relative intensity (%)')
+        ax.set_xlabel("m/z", fontname="Arial", fontsize=8)
+        ax.set_ylabel("Relative intensity (%)", fontname="Arial", fontsize=8)
+
         def format_thousands(x, pos):
             return "{:,}".format(int(x))
-        plt.gca().xaxis.set_major_formatter(FuncFormatter(format_thousands))
 
-        ax.plot(spectrum_x, spectrum_y, color='black')
+        ax.xaxis.set_major_formatter(FuncFormatter(format_thousands))
+        ax.tick_params(axis="both", labelsize=8)
 
-        labels = []
-        label_x = []
-        label_y = []
-        num = 0
-        for _, row in name_data.iterrows():
-            ion_name = row['ion']
-            adduct = row['adduct']
-            loss = row['loss']
-            num += 1
+        for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
+            tick_label.set_fontname("Arial")
+            tick_label.set_fontsize(8)
 
-            x_plot = np.array([])
-            y_plot = np.array([])
-
-            theo_x = ast.literal_eval(row['fitter_theo_x'])
-            for x in theo_x:
-                peak_index = self.find_closest_index(x, spectrum_x)
-                left_limit, right_limit = self.find_increasing_indexes(spectrum_y, peak_index)
-
-                x_plot = np.concatenate((
-                    x_plot,
-                    spectrum_x[left_limit-1:left_limit],
-                    spectrum_x[left_limit:right_limit],
-                    spectrum_x[right_limit:right_limit+1]
-                ))
-
-                y_plot = np.concatenate((
-                    y_plot,
-                    np.zeros(1),
-                    spectrum_y[left_limit:right_limit],
-                    np.zeros(1)
-                ))
-
-            if colour != "black":
-                ax.plot(x_plot, y_plot, color=colour)
-
-            # label top 10 peaks
-            if type(adduct) is float and type(loss) is float and num <= 10:
-                labels.append(ion_name)
-                label_x.append(min(x_plot))
-                label_y.append(max(y_plot))
-
-        info("Optimising annotation placement...")
-        ta.allocate_text(fig, ax, label_x, label_y,
-            labels,
-            avoid_label_lines_overlap=True,
-            max_distance=0.15,
-            linecolor="grey",
-            textcolor="#b42920",
-            x_scatter=[spectrum_x], y_scatter=[spectrum_y],
-            scatter_sizes = [5] * len(spectrum_x)
+        ax.plot(
+            spectrum_plot_x,
+            spectrum_plot_y,
+            color="black",
+            linewidth=0.5,
+            zorder=1
         )
 
-        fig_manager = plt.get_current_fig_manager()
-        fig_manager.window.SetIcon(wx.Icon('./icons/icon.ico', wx.BITMAP_TYPE_ICO))
+        label_data_all = name_data[
+            name_data["adduct"].apply(self.is_missing_value) &
+            name_data["loss"].apply(self.is_missing_value)
+        ].sort_values(
+            by="abundance",
+            ascending=False
+        )
+
+        label_data = label_data_all.head(annotation_count)
+
+        if len(label_data) == 0:
+            plt.tight_layout()
+            plt.show()
+            return
+
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer=renderer)
+
+        placed_label_bboxes = []
+        text_gap = 0.1
+
+        label_bbox_style = dict(
+            facecolor=ax.get_facecolor(),
+            edgecolor="none",
+            pad=0.5
+        )
+
+        for _, row in label_data.iterrows():
+            try:
+                theo_x = ast.literal_eval(row["fitter_theo_x"])
+            except Exception:
+                continue
+
+            if not theo_x:
+                continue
+
+            mono_x = theo_x[0]
+
+            peak_index = self.find_closest_index(mono_x, spectrum_x)
+            x_peak = spectrum_x[peak_index]
+            y_peak = spectrum_y[peak_index]
+
+            formatted_label = self.format_ion_label(row)
+
+            y_text = self.find_non_overlapping_label_y(
+                ax=ax,
+                renderer=renderer,
+                axes_bbox=axes_bbox,
+                x_peak=x_peak,
+                y_peak=y_peak,
+                formatted_label=formatted_label,
+                colour=colour,
+                label_bbox_style=label_bbox_style,
+                placed_label_bboxes=placed_label_bboxes,
+                spectrum_x=spectrum_x,
+                spectrum_y=spectrum_y
+            )
+
+            if y_text is None:
+                continue
+
+            text_obj = ax.text(
+                x_peak,
+                y_text,
+                formatted_label,
+                rotation=0,
+                ha="center",
+                va="bottom",
+                color=colour,
+                fontsize=8,
+                fontname="Arial",
+                bbox=label_bbox_style,
+                zorder=4,
+                clip_on=False
+            )
+
+            text_bbox = text_obj.get_window_extent(renderer=renderer)
+            text_bbox = self.expand_bbox(text_bbox, pad_px=1)
+            placed_label_bboxes.append(text_bbox)
+
+            line_start = y_peak + spectrum_line_gap
+            line_top = y_text - text_gap
+
+            if line_start < line_top:
+                ax.plot(
+                    [x_peak, x_peak],
+                    [line_start, line_top],
+                    color=colour,
+                    linewidth=0.5,
+                    zorder=2
+                )
+
+        try:
+            fig_manager = plt.get_current_fig_manager()
+            fig_manager.window.SetIcon(wx.Icon("./icons/icon.ico", wx.BITMAP_TYPE_ICO))
+        except Exception:
+            pass
 
         plt.tight_layout()
         plt.show()
 
 
-    def find_closest_index(self, value, array):
-        closest_index = np.abs(array - value).argmin()
+    def set_arial_font(self):
+        plt.rcParams.update({
+            "font.family": "Arial",
+            "font.sans-serif": ["Arial"],
+            "font.size": 8,
+            "axes.labelsize": 8,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "legend.fontsize": 8,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "path.simplify": True,
+            "path.simplify_threshold": 0.5,
+            "mathtext.fontset": "custom",
+            "mathtext.rm": "Arial",
+            "mathtext.it": "Arial:italic",
+            "mathtext.bf": "Arial:bold"
+        })
 
-        return closest_index
+
+    def downsample_spectrum_minmax(self, x, y, target_points=5000):
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        if len(x) <= target_points:
+            return x, y
+
+        n_bins = max(1, target_points // 2)
+
+        x_min = np.min(x)
+        x_max = np.max(x)
+
+        bin_edges = np.linspace(x_min, x_max, n_bins + 1)
+        bin_ids = np.searchsorted(bin_edges, x, side="right") - 1
+        bin_ids = np.clip(bin_ids, 0, n_bins - 1)
+
+        keep_indices = []
+
+        for bin_id in range(n_bins):
+            indices = np.where(bin_ids == bin_id)[0]
+
+            if len(indices) == 0:
+                continue
+
+            local_y = y[indices]
+
+            min_index = indices[np.argmin(local_y)]
+            max_index = indices[np.argmax(local_y)]
+
+            keep_indices.append(min_index)
+            keep_indices.append(max_index)
+
+        keep_indices = sorted(set(keep_indices))
+
+        return x[keep_indices], y[keep_indices]
+
+    
+    def find_non_overlapping_label_y(
+        self,
+        ax,
+        renderer,
+        axes_bbox,
+        x_peak,
+        y_peak,
+        formatted_label,
+        colour,
+        label_bbox_style,
+        placed_label_bboxes,
+        spectrum_x,
+        spectrum_y
+    ):
+        candidate_y_values = self.get_candidate_label_y_values(
+            y_peak=y_peak,
+            y_top=ax.get_ylim()[1]
+        )
+
+        if not candidate_y_values:
+            return None
+
+        # measure the label once: its pixel size is independent of y data-position
+        # (transData differs only by a vertical translation), so render once,
+        # capture the box, and translate it for each candidate y
+        probe_text = ax.text(
+            x_peak,
+            candidate_y_values[0],
+            formatted_label,
+            rotation=0,
+            ha="center",
+            va="bottom",
+            color=colour,
+            fontsize=8,
+            fontname="Arial",
+            bbox=label_bbox_style,
+            zorder=4,
+            clip_on=False
+        )
+
+        probe_bbox = probe_text.get_window_extent(renderer=renderer)
+        probe_text.remove()
+
+        box_x0 = probe_bbox.x0
+        box_x1 = probe_bbox.x1
+
+        _, probe_anchor_py = ax.transData.transform((x_peak, candidate_y_values[0]))
+
+        # the spectrum x-window is identical for every candidate of this label,
+        # so resolve the data-space x bounds and the peak height in that window once
+        x_min_box, x_max_box = sorted([box_x0, box_x1])
+
+        inv = ax.transData.inverted()
+        x_data_min, _ = inv.transform((x_min_box, probe_anchor_py))
+        x_data_max, _ = inv.transform((x_max_box, probe_anchor_py))
+        x_data_min, x_data_max = sorted([x_data_min, x_data_max])
+
+        lo = np.searchsorted(spectrum_x, x_data_min, side="left")
+        hi = np.searchsorted(spectrum_x, x_data_max, side="right")
+
+        if hi > lo:
+            window_max_y = float(np.nanmax(spectrum_y[lo:hi]))
+            has_spectrum_in_window = True
+        else:
+            window_max_y = None
+            has_spectrum_in_window = False
+
+        for y_text in candidate_y_values:
+            _, anchor_py = ax.transData.transform((x_peak, y_text))
+            dy = anchor_py - probe_anchor_py
+
+            trial_bbox = Bbox.from_extents(
+                box_x0,
+                probe_bbox.y0 + dy,
+                box_x1,
+                probe_bbox.y1 + dy
+            )
+            trial_bbox = self.expand_bbox(trial_bbox, pad_px=1)
+
+            overlaps_other_label = any(
+                trial_bbox.overlaps(existing_bbox)
+                for existing_bbox in placed_label_bboxes
+            )
+
+            if overlaps_other_label:
+                continue
+
+            overlaps_spectrum = self.trial_bbox_overlaps_spectrum(
+                ax=ax,
+                trial_bbox=trial_bbox,
+                has_spectrum_in_window=has_spectrum_in_window,
+                window_max_y=window_max_y,
+                y_margin=0.5
+            )
+
+            if overlaps_spectrum:
+                continue
+
+            outside_axes = not self.bbox_inside_axes(
+                bbox=trial_bbox,
+                axes_bbox=axes_bbox,
+                margin_px=1
+            )
+
+            if outside_axes:
+                continue
+
+            return y_text
+
+        return None
+
+
+    def get_candidate_label_y_values(self, y_peak, y_top):
+        min_y = y_peak + 2.0
+        max_y = y_top - 5.0
+
+        if min_y > max_y:
+            return []
+
+        preferred_y = y_peak + 8.0
+        preferred_y = min(max(preferred_y, min_y), max_y)
+
+        candidates = []
+
+        step = 1.0
+        max_offset = max(abs(max_y - preferred_y), abs(preferred_y - min_y))
+
+        offsets = [0.0]
+        offset = step
+
+        while offset <= max_offset:
+            offsets.append(offset)
+            offsets.append(-offset)
+            offset += step
+
+        for offset in offsets:
+            y = preferred_y + offset
+
+            if min_y <= y <= max_y:
+                candidates.append(round(float(y), 2))
+
+        for y in np.arange(72, max_y + 0.1, 1.0):
+            if y >= min_y:
+                candidates.append(round(float(y), 2))
+
+        seen = set()
+        ordered_candidates = []
+
+        for y in candidates:
+            if y not in seen:
+                ordered_candidates.append(y)
+                seen.add(y)
+
+        return ordered_candidates
+
+
+    def trial_bbox_overlaps_spectrum(
+        self,
+        ax,
+        trial_bbox,
+        has_spectrum_in_window,
+        window_max_y,
+        y_margin=0.5
+    ):
+        if not has_spectrum_in_window:
+            return False
+
+        inv = ax.transData.inverted()
+
+        _, y0 = inv.transform((trial_bbox.x0, trial_bbox.y0))
+        _, y1 = inv.transform((trial_bbox.x1, trial_bbox.y1))
+
+        y_min = min(y0, y1)
+
+        return window_max_y >= (y_min - y_margin)
+
+
+    def text_bbox_overlaps_spectrum(
+        self,
+        ax,
+        text_bbox,
+        spectrum_x,
+        spectrum_y,
+        y_margin=0.5
+    ):
+        inv = ax.transData.inverted()
+
+        x0, y0 = inv.transform((text_bbox.x0, text_bbox.y0))
+        x1, y1 = inv.transform((text_bbox.x1, text_bbox.y1))
+
+        x_min, x_max = sorted([x0, x1])
+        y_min, y_max = sorted([y0, y1])
+
+        mask = (spectrum_x >= x_min) & (spectrum_x <= x_max)
+
+        if not np.any(mask):
+            return False
+
+        max_spectrum_y = np.nanmax(spectrum_y[mask])
+
+        return max_spectrum_y >= (y_min - y_margin)
+
+
+    def bbox_inside_axes(self, bbox, axes_bbox, margin_px=1):
+        return (
+            bbox.x0 >= axes_bbox.x0 + margin_px and
+            bbox.x1 <= axes_bbox.x1 - margin_px and
+            bbox.y0 >= axes_bbox.y0 + margin_px and
+            bbox.y1 <= axes_bbox.y1 - margin_px
+        )
+
+
+    def expand_bbox(self, bbox, pad_px=1):
+        return Bbox.from_extents(
+            bbox.x0 - pad_px,
+            bbox.y0 - pad_px,
+            bbox.x1 + pad_px,
+            bbox.y1 + pad_px
+        )
+
+
+    def format_ion_label(self, row):
+        ion_name = str(row["ion"]).strip()
+        ion_type, ion_index = self.parse_ion_name(ion_name)
+        internal_range = self.get_internal_range(row, ion_type)
+
+        if internal_range is not None:
+            ion_index = internal_range
+
+        charge = None
+
+        if "charge" in row.index and not pd.isna(row["charge"]):
+            charge = self.format_charge(row["charge"])
+
+        if ion_index == "":
+            return ion_name
+
+        ion_index_math = ion_index.replace("-", r"\mathrm{-}")
+
+        if charge is not None:
+            return rf"$\mathit{{{ion_type}}}_{{{ion_index_math}}}^{{{charge}}}$"
+
+        return rf"$\mathit{{{ion_type}}}_{{{ion_index_math}}}$"
+
+
+    def parse_ion_name(self, ion_name):
+        s = ion_name.replace(" ", "")
+
+        match = re.match(r"^([A-Za-z]+)(\d+(?:-\d+)?)", s)
+
+        if match:
+            ion_type = match.group(1)
+            ion_index = match.group(2)
+            return ion_type, ion_index
+
+        return ion_name, ""
+
+
+    def get_internal_range(self, row, ion_type):
+        ion_type_lower = str(ion_type).lower()
+
+        is_internal = (
+            ion_type_lower in ["i", "int", "internal", "intern"] or
+            "internal" in ion_type_lower
+        )
+
+        if not is_internal:
+            return None
+
+        candidate_pairs = [
+            ("start", "end"),
+            ("start_index", "end_index"),
+            ("start_residue", "end_residue"),
+            ("residue_start", "residue_end"),
+            ("fragment_start", "fragment_end"),
+            ("n_index", "c_index"),
+            ("n_terminal", "c_terminal"),
+            ("n_term", "c_term"),
+        ]
+
+        for start_col, end_col in candidate_pairs:
+            if start_col in row.index and end_col in row.index:
+                start_val = row[start_col]
+                end_val = row[end_col]
+
+                if not pd.isna(start_val) and not pd.isna(end_val):
+                    try:
+                        start_val = int(float(start_val))
+                        end_val = int(float(end_val))
+                        return f"{start_val}-{end_val}"
+                    except Exception:
+                        return f"{start_val}-{end_val}"
+
+        return None
+
+
+    def format_charge(self, charge_value):
+        s = str(charge_value).strip()
+
+        if s.endswith("+"):
+            return s
+
+        try:
+            return f"{int(float(s))}+"
+        except Exception:
+            return f"{s}+"
+
+
+    def is_missing_value(self, value):
+        if pd.isna(value):
+            return True
+
+        s = str(value).strip().lower()
+
+        return s in ["", "nan", "none", "null", "na", "n/a"]
+
+
+    def find_closest_index(self, value, array):
+        # spectrum m/z axis is sorted, so binary search beats a full O(N) scan
+        idx = np.searchsorted(array, value)
+        if idx == 0:
+            return 0
+        if idx == len(array):
+            return len(array) - 1
+        if abs(array[idx] - value) < abs(array[idx - 1] - value):
+            return idx
+        return idx - 1
 
 
     def find_increasing_indexes(self, arr, index):
         left_index = index - 2
+
         while left_index > 0 and arr[left_index - 1] <= arr[left_index]:
             left_index -= 1
+
         if index - left_index >= 3:
             right_index = index + (index - left_index)
         else:
             right_index = index + 2
-            while right_index <= len(arr) - 1 and arr[right_index] >= arr[right_index + 1]:
+
+            while right_index < len(arr) - 1 and arr[right_index] >= arr[right_index + 1]:
                 right_index += 1
-            left_index = index - (right_index - left_index)
+
+            left_index = index - (right_index - index)
 
         return left_index, right_index

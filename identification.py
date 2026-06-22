@@ -12,7 +12,7 @@ class ProteinIDWindow(wx.Frame):
             parent,
             title=title,
             size=(406, 245),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
         self.file_path = file_path

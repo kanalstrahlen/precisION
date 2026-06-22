@@ -16,8 +16,8 @@ class DefineTerminiWindow(wx.Frame):
         super().__init__(
             parent,
             title=title,
-            size=(415, 560),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            size=(415, 580),
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
         self.basename = os.path.basename(file_path).replace(".txt", "")
@@ -85,8 +85,18 @@ class DefineTerminiWindow(wx.Frame):
         options_subsizer.Add(ion_type_text, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 0)
         options_subsizer.Add(self.ion_type, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
 
+        # count peaks already assigned to an ion only when ticked; this is only
+        # meaningful when the assignedPeakList exists, so disable it otherwise
+        assigned_exists = os.path.exists(
+            os.path.join(self.directory_path, f"{self.basename}.assignedPeakList.csv")
+        )
+        self.include_assigned = wx.CheckBox(panel, label="Include already-assigned peaks")
+        self.include_assigned.SetValue(True)
+        self.include_assigned.Enable(assigned_exists)
+
         options_sizer.Add(options_header, 0, wx.EXPAND | wx.BOTTOM, 5)
         options_sizer.Add(options_subsizer, 0, wx.EXPAND | wx.BOTTOM, 5)
+        options_sizer.Add(self.include_assigned, 0, wx.EXPAND | wx.BOTTOM, 5)
         options_sizer.SetMinSize((400, -1))
 
         define_termini_button = wx.Button(panel, label="Run Search",  size=(100, 40))
@@ -146,13 +156,17 @@ class DefineTerminiWindow(wx.Frame):
         return grid
 
 
-    def load_peaks(self, df=True):
+    def load_peaks(self, df=True, include_assigned=True):
         # use the recalibrated values if they exist
         peak_file_path = os.path.join(self.directory_path, f"{self.basename}.assignedPeakList.csv")
         if os.path.exists(peak_file_path):
             peak_list = pd.read_csv(peak_file_path)
             peak_list = peak_list.sort_values(by="monoisotopic_mw")
-        else:        
+            # optionally drop peaks already assigned to an ion, keeping unassigned ones
+            if not include_assigned:
+                assigned = peak_list["ion"].notna() & (peak_list["ion"] != "None")
+                peak_list = peak_list[~assigned]
+        else:
             peak_file_path = os.path.join(self.directory_path, f"{self.basename}.filteredPeakList.csv")  
             peak_list = pd.read_csv(peak_file_path)
             peak_list = peak_list.sort_values(by="monoisotopic_mw")
@@ -181,7 +195,8 @@ class DefineTerminiWindow(wx.Frame):
         n_term_mods = self.extract_modification_data(self.n_term_grid)
         c_term_mods = self.extract_modification_data(self.c_term_grid)
 
-        observed_peaks = self.load_peaks(df=False)
+        include_assigned = self.include_assigned.GetValue()
+        observed_peaks = self.load_peaks(df=False, include_assigned=include_assigned)
 
         ppm_error = float(self.ppm_threshold.GetValue())
         ion_type = self.ion_type.GetValue()
@@ -204,6 +219,12 @@ class DefineTerminiFunctions():
     def truncation_scan(self, sequence, n_mods, c_mods, observed_peaks, ppm_error, ion_type):
         info("[b]Running termini identification...")
         sequence = self.process_sequence_string(sequence)
+
+        # precompute per-residue masses once; every truncation is a slice of these
+        aa_cumsum, water_mass, cz_ions = self.precompute_residue_masses(sequence, ion_type)
+
+        # sort observed peaks once for the binary search matching
+        observed_peaks.sort()
 
         n_mod_count = len([mod for mod in n_mods if mod[0] != ""])
         c_mod_count = len([mod for mod in c_mods if mod[0] != ""])
@@ -229,12 +250,14 @@ class DefineTerminiFunctions():
 
                 match_per_res = []
                 for j in range(len(sequence)):
-                    test_sequence = sequence[j:]
+                    # b-ion ladder of sequence[j:] is a slice of the full cumsum
+                    sub_cumsum = aa_cumsum[j:] - (aa_cumsum[j-1] if j > 0 else 0)
                     theo_b_ions, _ = self.theoretical_mass_generator(
-                        test_sequence,
+                        sub_cumsum,
+                        water_mass,
                         mod_mass,
                         0,
-                        ion_type
+                        cz_ions
                     )
 
                     matched_theoretical_b_ions, _ = self.report_matches_for_protein(
@@ -275,12 +298,14 @@ class DefineTerminiFunctions():
 
                 match_per_res = []
                 for j in range(len(sequence)):
-                    test_sequence = sequence[:j+1]
+                    # y-ion ladder of sequence[:j+1] is a prefix of the full cumsum
+                    sub_cumsum = aa_cumsum[:j+1]
                     _, theo_y_ions = self.theoretical_mass_generator(
-                        test_sequence,
+                        sub_cumsum,
+                        water_mass,
                         0,
                         mod_mass,
-                        ion_type
+                        cz_ions
                     )
                     matched_theoretical_y_ions, _ = self.report_matches_for_protein(
                         theo_y_ions[0],
@@ -321,60 +346,67 @@ class DefineTerminiFunctions():
         plt.show()
 
 
-    def theoretical_mass_generator(
-        self,
-        sequence,
-        n_terminal_modification_mass,
-        c_terminal_modification_mass,
-        ion_type = "b/y"
-    ):
+    def precompute_residue_masses(self, sequence, ion_type = "b/y"):
 
         if ion_type == "c/z•":
             cz_ions = True
         elif ion_type == "b/y":
             cz_ions = False
 
-        # lists of b and y ions
-        theo_b_ions_list = []
-        theo_y_ions_list = []
-
         # replace c with B to enable disulfide calc
         mass.std_aa_comp["B"] = mass.Composition({'C': 3, 'H': 4, 'N': 1, 'O': 1, 'S': 1})
         sequence = sequence.replace('c', 'B')
 
-        sequence_mass = mass.calculate_mass(sequence, ion_type="M") # intact mass
         aa_masses = np.array(
         [mass.calculate_mass(aa, ion_type="b") for aa in sequence]
         ) # individual residue masses
+        aa_cumsum = np.cumsum(aa_masses) # running total along the full sequence
+
+        water_mass = mass.calculate_mass(formula="H2O") # intact mass = cumsum + water
+
+        return aa_cumsum, water_mass, cz_ions
+
+
+    def theoretical_mass_generator(
+        self,
+        aa_cumsum,
+        water_mass,
+        n_terminal_modification_mass,
+        c_terminal_modification_mass,
+        cz_ions = False
+    ):
+
+        # lists of b and y ions
+        theo_b_ions_list = []
+        theo_y_ions_list = []
+
+        sequence_mass = aa_cumsum[-1] + water_mass # intact mass
 
         if cz_ions:
             b_ion_masses = (
-                np.cumsum(aa_masses) +
+                aa_cumsum +
                 n_terminal_modification_mass +
                 17.026549 # + nh3
             )
             y_ion_masses = (
                 sequence_mass +
                 c_terminal_modification_mass -
-                np.cumsum(aa_masses) -
+                aa_cumsum -
                 17.026549 + 1.00783 # - nh3 + extra proton to balance electron charge + electron
             )
         else:
             b_ion_masses = (
-                np.cumsum(aa_masses) +
+                aa_cumsum +
                 n_terminal_modification_mass
             )
             y_ion_masses = (
                 sequence_mass +
                 c_terminal_modification_mass -
-                np.cumsum(aa_masses)
+                aa_cumsum
             )
 
         theo_b_ions_list.append(b_ion_masses[:-1]) # exclude the dehydrated full protein
         theo_y_ions_list.append(y_ion_masses[:-1])
-
-        # sort for binary search
-        theo_y_ions_list.sort()
 
         return theo_b_ions_list, theo_y_ions_list
 
@@ -405,9 +437,8 @@ class DefineTerminiFunctions():
         matched_theoretical_ion_indices = []
         matched_observed_ion_indices = []
 
-        # sort both lists for binary search; nearly always sorted but this is still there
+        # sort theoretical ions for binary search; observed are pre-sorted by the caller
         theoretical_ions.sort()
-        observed_ions.sort()
 
         for i, theo_ion in enumerate(theoretical_ions):
             num_matches, match = binary_search(observed_ions, theo_ion, ppm_threshold)
@@ -416,3 +447,4 @@ class DefineTerminiFunctions():
                 matched_observed_ion_indices.append(match)
 
         return matched_theoretical_ion_indices, matched_observed_ion_indices
+ 

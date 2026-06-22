@@ -19,7 +19,7 @@ class NoModSearchWindow(wx.Frame):
             parent,
             title=title,
             size=(450, 330),
-            style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+            style=wx.DEFAULT_FRAME_STYLE & ~(wx.MAXIMIZE_BOX)
         )
 
         self.basename = os.path.basename(file_path).replace(".txt", "")

@@ -187,7 +187,7 @@ class Thrash():
 
 
     def thrash(self, decon_params):
-        decontools_path = "./DeconTools_x64/DeconConsole.exe"
+        decontools_path = "./decontools-thrash-windows-x86_64.exe"
         signal_to_noise = decon_params[0]
         peak_background_ratio = decon_params[1]
         threshold = decon_params[2]
@@ -217,9 +217,6 @@ class Thrash():
                 check=False
             )
 
-            os.remove(os.path.join(self.directory_path, f"{self.basename}_log.txt"))
-            os.remove(os.path.join(self.directory_path, f"{self.basename}_peaks.txt"))
-            os.remove(os.path.join(self.directory_path, f"{self.basename}_scans.csv"))
             try:
                 os.remove(
                     os.path.join(
@@ -303,7 +300,7 @@ class TopFD():
 
         if algo == "msdeconv":
             topfd_command = [
-                "./topFD/topfd.exe",
+                "./topfd-decon-windows-x86_64.exe",
                 self.file_path,
                 "-a",
                 activation_type,
@@ -324,7 +321,7 @@ class TopFD():
 
         elif algo == "envcnn":
             topfd_command = [
-                "./topFD/topfd.exe",
+                "./topfd-decon-windows-x86_64.exe",
                 self.file_path,
                 "-a",
                 activation_type,

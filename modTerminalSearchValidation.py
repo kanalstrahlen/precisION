@@ -451,17 +451,12 @@ class ModTerminalSearchValidationWindow(wx.Frame):
             old_prop = self.calculate_propensity(old_frag[0], old_frag[1])
             old_prop = round(math.log10(old_prop), 1)
 
-            if new_score >= old_score and new_prop >= old_prop:
+            if new_prop >= old_prop:
                 self.on_true_button(None)
                 return
-            elif new_score <= old_score and new_prop < old_prop:
+            else:
                 self.on_false_button(None)
                 return
-            else:
-                warn(f"Fragment has already been assigned as {prev_ion}")
-                info(f"[yellow]Old score: {round(old_score,2)} New score: {round(new_score,2)}[/yellow]")
-                info(f"[yellow]Old propensity score: {old_prop} New propensity score: {new_prop}[/yellow]")
-                info("[yellow]Propensity scores closer to 0 are more likely.[/yellow]")
 
         if (self.score >= self.min_score and
             abs(self.ppm_error) <= self.auto_accuracy and
@@ -780,8 +775,15 @@ class ModTerminalSearchValidationWindow(wx.Frame):
 
 
     def find_closest_index(self, value, array):
-        closest_index = np.abs(array - value).argmin()
-        return closest_index
+        # spectrum m/z axis is sorted, so binary search beats a full O(N) scan
+        idx = np.searchsorted(array, value)
+        if idx == 0:
+            return 0
+        if idx == len(array):
+            return len(array) - 1
+        if abs(array[idx] - value) < abs(array[idx - 1] - value):
+            return idx
+        return idx - 1
 
 
     def get_indices_below_n_percent(self, lst, n):
@@ -1025,16 +1027,19 @@ class ValidationPlotsPanel(wx.Panel):
 
 
     def on_size(self, event):
-        self.fit_plot_to_panel()
         event.Skip()
+        wx.CallAfter(self.fit_figure_to_canvas)
 
 
-    def fit_plot_to_panel(self):
-        size = self.GetClientSize()
-        if size[0] >= 50:
-            dpi = self.GetContentScaleFactor() * 100
-            width = size.width / dpi
-            height = size.height / dpi - 0.3
-            self.figure.set_size_inches(width, height)
-            self.figure.tight_layout(rect=[0, 0, 1, 1])
-            self.canvas.draw()
+    def fit_figure_to_canvas(self):
+        #size the figure to match the canvas drawable area (not the panel)
+        cw, ch = self.canvas.GetClientSize()
+        if cw <= 10 or ch <= 10:
+            return
+        dpi = self.figure.get_dpi()  # real matplotlib dpi (usually 100)
+        self.figure.set_size_inches(cw / dpi, ch / dpi, forward=False)
+        try:
+            self.figure.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.canvas.draw_idle()
