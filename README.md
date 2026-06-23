@@ -55,9 +55,9 @@ python .\launcher.py
 If you wish to use the proteoform databases, these must be downloaded as described below.
 
 ### Proteoform Databases
-Isoform databases for most major model organisms can also be installed from [Dropbox](https://www.dropbox.com/scl/fo/i8bce231gj5ymacx9o1cf/AJ0WVSWEHXeFhb3gbLWeeQA?rlkey=wko5zht5a2d7z6h625ci2qi32&dl=0). 
-They will be updated periodically but should not change drastically.
+Isoform databases for most major model organisms can be installed from [Dropbox](https://www.dropbox.com/scl/fo/i8bce231gj5ymacx9o1cf/AJ0WVSWEHXeFhb3gbLWeeQA?rlkey=wko5zht5a2d7z6h625ci2qi32&dl=0). 
 We suggest to install these files during the initial setup of the software and move them into a folder in the precisION directory in a folder named `Databases`.
+For other organisms, you can download xml databases from UniProt, then convert them into a suitable format using the `UniprotXMLConverter.exe` executable.
 
 ### Generating Input Files
 Input files should be tab- or space-delimited `.txt` files containing two columns: _m_/_z_ and intensity.
