@@ -5,15 +5,18 @@ import numpy as np
 from psims.mzml import MzMLWriter
 from pyteomics import mzml
 import matplotlib.pyplot as plt
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
-from scipy.signal import convolve
+from scipy.signal import convolve, choose_conv_method
+from scipy.fft import rfft, irfft, next_fast_len
 from tqdm import tqdm
 import plotly.graph_objects as go
 
 from logger import info, warn, error, success
 
 warnings.filterwarnings('ignore')
+
 
 class RLPeakPicking():
     def __init__(self, file_path, directory_path, html_file_save):
@@ -66,122 +69,161 @@ class RLPeakPicking():
         num_windows = int((max(mz) - min(mz))/100)
         window_width = int(len(mz) / num_windows)
 
+        # speed is primarily affected by spacing, i have reduced this to a feasible level now w/ interpolation
+        num_iterations = 100000
+
         peaks_mz = []
         peaks_intensity = []
         total_convolution = []
         total_mz = []
 
         info("[b]Running RL deconvolution.")
-        for i in tqdm(range(num_windows)):
-            window_min = i * window_width
-            window_max = (i+1) * window_width
 
-            mz_values = mz[window_min:window_max]
-            observed_spectrum = intensity[window_min:window_max]
-            num_points = len(mz_values)
-            nonzero_indices = np.where(
-                np.logical_and(
-                    np.roll(observed_spectrum, 1) > 1e-10,
-                    np.roll(observed_spectrum, -1) > 1e-10
-                )
-            )[0]
-            observed_spectrum[~np.isin(np.arange(len(observed_spectrum)), nonzero_indices)] = 1e-10
+        # each window is independent so deconvolve them in parallel threads, then stitch
+        # the results back together in window order to keep the output identical to serial
+        results = [None] * num_windows
+        max_workers = min(os.cpu_count() or 1, num_windows)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {}
+            for i in range(num_windows):
+                window_min = i * window_width
+                window_max = (i+1) * window_width
+                mz_values = np.array(mz[window_min:window_max])
+                observed_spectrum = np.array(intensity[window_min:window_max])
+                future = executor.submit(self.process_rl_window, mz_values, observed_spectrum, res, noise, num_iterations)
+                futures[future] = i
+            for future in tqdm(as_completed(futures), total=num_windows):
+                results[futures[future]] = future.result()
 
-            # speed is primarily affected by spacing, i have reduced this to a feasible level now w/ interpolation
-
-            # Initialize parameters
-            num_iterations = 100000
-            convergence_threshold = 1e-4 # low convergence for intial solution as much harder to converge on true solution
-
-            estimated_signal = np.copy(observed_spectrum)
-            prev_estimated_signal = np.copy(estimated_signal)
-
-            fac = 1.6
-
-            psf_sigma = (res[0] * ((np.min(mz_values) - res[2]) ** res[1])) + res[3]
-
-
-            for iteration in range(num_iterations):
-                prev_estimated_signal = np.copy(estimated_signal)
-                gaussian_psf = np.exp(-(mz_values - mz_values[num_points // 2])**2 / (2 * fac * psf_sigma **2))
-                convolved_estimate = convolve(estimated_signal, gaussian_psf, mode='same')
-                ratio = observed_spectrum / convolved_estimate
-                estimated_signal *= ratio
-                squared_diff_sum = np.sum(np.diff(estimated_signal - prev_estimated_signal)**2)
-                totalsum = np.sum(estimated_signal)
-                change = squared_diff_sum/totalsum
-                if change < convergence_threshold:
-                    break
-
-            window_size = 2.355 * psf_sigma
-            window_size = int(window_size  / (mz_values[1] - mz_values[0]))
-            clustered_estimate = np.zeros_like(estimated_signal)
-            clustered_estimate[:] = 1e-10
-            sorted_indices = np.argsort(estimated_signal)[::-1]
-            clustered_indices = np.zeros_like(estimated_signal, dtype=bool)
-            temp_estimate = estimated_signal.copy()
-            for sorted_index in sorted_indices:
-                if not clustered_indices[sorted_index]:
-                    mz_start_idx = max(0, sorted_index - window_size // 2)
-                    mz_end_idx = min(len(estimated_signal)-1, sorted_index + window_size // 2 + 1)
-                    com_index = sorted_index
-                    total_intensity = sum(temp_estimate[mz_start_idx:mz_end_idx])
-                    temp_estimate[mz_start_idx:mz_end_idx] = 1e-10
-                    clustered_estimate[com_index] = total_intensity
-                    clustered_indices[mz_start_idx:mz_end_idx] = True
-
-            peak_indices = np.where(clustered_estimate >= 1e-2)[0]
-            estimated_signal = np.copy(clustered_estimate)
-
-            convergence_threshold = 1e-10
-            for iteration in range(num_iterations):
-                prev_estimated_signal = np.copy(estimated_signal)
-                gaussian_psf = np.exp(-(mz_values - mz_values[num_points // 2])**2 / (2 * psf_sigma **2))
-                convolved_estimate = convolve(estimated_signal, gaussian_psf, mode='same')
-                ratio = observed_spectrum / convolved_estimate
-                estimated_signal *= ratio
-                estimated_signal[np.isin(np.arange(len(estimated_signal)), peak_indices, invert=True)] = 1e-10
-                squared_diff_sum = np.sum(np.diff(estimated_signal - prev_estimated_signal)**2)
-                totalsum = np.sum(estimated_signal)
-                change = squared_diff_sum/totalsum
-                if change < convergence_threshold:
-                    break
-
-            window_size = 2.355 * psf_sigma
-            window_size = int(window_size  / (mz_values[1] - mz_values[0]))
-            clustered_estimate = np.zeros_like(estimated_signal)
-            clustered_estimate[:] = 1e-10
-            sorted_indices = np.argsort(estimated_signal)[::-1]
-            clustered_indices = np.zeros_like(estimated_signal, dtype=bool)
-            temp_estimate = estimated_signal.copy()
-            for sorted_index in sorted_indices:
-                if not clustered_indices[sorted_index]:
-                    mz_start_idx = max(0, sorted_index - window_size // 2)
-                    mz_end_idx = min(len(estimated_signal)-1, sorted_index + window_size // 2 + 1)
-                    com_index = sorted_index
-                    total_intensity = sum(temp_estimate[mz_start_idx:mz_end_idx])
-                    temp_estimate[mz_start_idx:mz_end_idx] = 1e-10
-                    clustered_estimate[com_index] = total_intensity
-                    clustered_indices[mz_start_idx:mz_end_idx] = True
-
-            peak_indices = np.where(clustered_estimate >= 1e-2)[0]
-            noise_level = noise[0] * mz_values[0] ** 2 + noise[1] * mz_values[0] + noise[2]
-
-            for i in peak_indices:
-                if clustered_estimate[i] >= (0.1 * noise_level) :
-                    peaks_mz.append(mz_values[i+1])
-                    peaks_intensity.append(clustered_estimate[i])
-
-            clustered_estimate = [value if value >= 0.1 * noise_level else 1e-10 for value in clustered_estimate]
-
-            convolved = convolve(clustered_estimate, gaussian_psf, mode='same')
-            total_mz.extend(mz_values)
-            total_convolution.extend(convolved)
+        for window_peaks_mz, window_peaks_intensity, window_mz, window_convolution in results:
+            peaks_mz.extend(window_peaks_mz)
+            peaks_intensity.extend(window_peaks_intensity)
+            total_mz.extend(window_mz)
+            total_convolution.extend(window_convolution)
 
         if html_file_save:
             self.generate_decon_plot(peaks_mz, peaks_intensity, total_mz, total_convolution, mz, intensity)
 
         return list(zip(peaks_mz, peaks_intensity)), list(zip(total_mz, total_convolution))
+
+
+    def process_rl_window(self, mz_values, observed_spectrum, res, noise, num_iterations):
+        num_points = len(mz_values)
+        nonzero_indices = np.where(
+            np.logical_and(
+                np.roll(observed_spectrum, 1) > 1e-10,
+                np.roll(observed_spectrum, -1) > 1e-10
+            )
+        )[0]
+        observed_spectrum[~np.isin(np.arange(len(observed_spectrum)), nonzero_indices)] = 1e-10
+
+        convergence_threshold = 1e-4 # low convergence for intial solution as much harder to converge on true solution
+
+        estimated_signal = np.copy(observed_spectrum)
+        prev_estimated_signal = np.copy(estimated_signal)
+
+        fac = 1.6
+
+        psf_sigma = (res[0] * ((np.min(mz_values) - res[2]) ** res[1])) + res[3]
+
+        # the psf is the same every iteration, so build it and its fft once up front
+        gaussian_psf = np.exp(-(mz_values - mz_values[num_points // 2])**2 / (2 * fac * psf_sigma **2))
+        conv_method = choose_conv_method(estimated_signal, gaussian_psf, mode='same')
+        conv_shape = num_points + len(gaussian_psf) - 1
+        conv_fast = next_fast_len(conv_shape, True)
+        conv_start = (conv_shape - num_points) // 2
+        psf_transform = rfft(gaussian_psf, conv_fast)
+
+        for iteration in range(num_iterations):
+            prev_estimated_signal = np.copy(estimated_signal)
+            if conv_method == 'fft':
+                convolved_estimate = irfft(rfft(estimated_signal, conv_fast) * psf_transform, conv_fast)[:conv_shape][conv_start:conv_start + num_points]
+            else:
+                convolved_estimate = convolve(estimated_signal, gaussian_psf, mode='same')
+            ratio = observed_spectrum / convolved_estimate
+            estimated_signal *= ratio
+            squared_diff_sum = np.sum(np.diff(estimated_signal - prev_estimated_signal)**2)
+            totalsum = np.sum(estimated_signal)
+            change = squared_diff_sum/totalsum
+            if change < convergence_threshold:
+                break
+
+        window_size = 2.355 * psf_sigma
+        window_size = int(window_size  / (mz_values[1] - mz_values[0]))
+        clustered_estimate = np.zeros_like(estimated_signal)
+        clustered_estimate[:] = 1e-10
+        sorted_indices = np.argsort(estimated_signal)[::-1]
+        clustered_indices = np.zeros_like(estimated_signal, dtype=bool)
+        temp_estimate = estimated_signal.copy()
+        for sorted_index in sorted_indices:
+            if not clustered_indices[sorted_index]:
+                mz_start_idx = max(0, sorted_index - window_size // 2)
+                mz_end_idx = min(len(estimated_signal)-1, sorted_index + window_size // 2 + 1)
+                com_index = sorted_index
+                total_intensity = sum(temp_estimate[mz_start_idx:mz_end_idx])
+                temp_estimate[mz_start_idx:mz_end_idx] = 1e-10
+                clustered_estimate[com_index] = total_intensity
+                clustered_indices[mz_start_idx:mz_end_idx] = True
+
+        peak_indices = np.where(clustered_estimate >= 1e-2)[0]
+        estimated_signal = np.copy(clustered_estimate)
+
+        # rebuild the psf and its fft for the second pass (without the fac factor)
+        gaussian_psf = np.exp(-(mz_values - mz_values[num_points // 2])**2 / (2 * psf_sigma **2))
+        conv_method = choose_conv_method(estimated_signal, gaussian_psf, mode='same')
+        conv_shape = num_points + len(gaussian_psf) - 1
+        conv_fast = next_fast_len(conv_shape, True)
+        conv_start = (conv_shape - num_points) // 2
+        psf_transform = rfft(gaussian_psf, conv_fast)
+
+        convergence_threshold = 1e-10
+        for iteration in range(num_iterations):
+            prev_estimated_signal = np.copy(estimated_signal)
+            if conv_method == 'fft':
+                convolved_estimate = irfft(rfft(estimated_signal, conv_fast) * psf_transform, conv_fast)[:conv_shape][conv_start:conv_start + num_points]
+            else:
+                convolved_estimate = convolve(estimated_signal, gaussian_psf, mode='same')
+            ratio = observed_spectrum / convolved_estimate
+            estimated_signal *= ratio
+            estimated_signal[np.isin(np.arange(len(estimated_signal)), peak_indices, invert=True)] = 1e-10
+            squared_diff_sum = np.sum(np.diff(estimated_signal - prev_estimated_signal)**2)
+            totalsum = np.sum(estimated_signal)
+            change = squared_diff_sum/totalsum
+            if change < convergence_threshold:
+                break
+
+        window_size = 2.355 * psf_sigma
+        window_size = int(window_size  / (mz_values[1] - mz_values[0]))
+        clustered_estimate = np.zeros_like(estimated_signal)
+        clustered_estimate[:] = 1e-10
+        sorted_indices = np.argsort(estimated_signal)[::-1]
+        clustered_indices = np.zeros_like(estimated_signal, dtype=bool)
+        temp_estimate = estimated_signal.copy()
+        for sorted_index in sorted_indices:
+            if not clustered_indices[sorted_index]:
+                mz_start_idx = max(0, sorted_index - window_size // 2)
+                mz_end_idx = min(len(estimated_signal)-1, sorted_index + window_size // 2 + 1)
+                com_index = sorted_index
+                total_intensity = sum(temp_estimate[mz_start_idx:mz_end_idx])
+                temp_estimate[mz_start_idx:mz_end_idx] = 1e-10
+                clustered_estimate[com_index] = total_intensity
+                clustered_indices[mz_start_idx:mz_end_idx] = True
+
+        peak_indices = np.where(clustered_estimate >= 1e-2)[0]
+        noise_level = noise[0] * mz_values[0] ** 2 + noise[1] * mz_values[0] + noise[2]
+
+        peaks_mz = []
+        peaks_intensity = []
+        for i in peak_indices:
+            if clustered_estimate[i] >= (0.1 * noise_level) :
+                peaks_mz.append(mz_values[i+1])
+                peaks_intensity.append(clustered_estimate[i])
+
+        clustered_estimate = [value if value >= 0.1 * noise_level else 1e-10 for value in clustered_estimate]
+
+        convolved = convolve(clustered_estimate, gaussian_psf, mode='same')
+
+        return peaks_mz, peaks_intensity, list(mz_values), list(convolved)
 
 
     def generate_decon_plot(self, rl_cent_x, rl_cent_y, rl_x, rl_y, mz, intensity):
